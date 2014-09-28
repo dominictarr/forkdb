@@ -28,7 +28,7 @@ var fdb = require('../')(db, { dir: blobdir });
 var cmd = argv._[0];
 
 if (cmd === 'list') {
-    fdb.list().pipe(ndjson()).pipe(process.stdout);
+    fdb.list(argv).pipe(ndjson()).pipe(process.stdout);
 }
 else if (cmd === 'create') {
     var meta = {};

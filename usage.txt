@@ -1,3 +1,11 @@
+usage: forkdb COMMAND OPTIONS
+
+  Global options are:
+
+    -d, --dir  directory to use for both db and blob storage
+    --blobdir  directory to use for blob storage
+    --dbdir    directory to use for db
+
 forkdb create '{"key":"...","prev":[...]}'
 forkdb create --key=KEY --prev [ --key=... --hash=... ] ...
 
