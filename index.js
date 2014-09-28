@@ -203,9 +203,12 @@ ForkDB.prototype.future = function (hash) {
     var self = this;
     var output = through.obj();
     self.db.get([ 'meta', hash ], function (err, row) {
-        future_(row).pipe(output);
+        var r = future_(row);
+        r.on('branch', function (b) { ro.emit('branch', b) });
+        r.pipe(output);
     });
-    return readonly(output);
+    var ro = readonly(output);
+    return ro;
     
     function future_ (row) {
         var r = new Readable({ objectMode: true });
@@ -215,7 +218,7 @@ ForkDB.prototype.future = function (hash) {
             if (!next) return r.push(null);
             
             var crows = [];
-            self.getLinks(next).pipe(through.obj(write, end));
+            self.getLinks(next.hash).pipe(through.obj(write, end));
             
             function write (crow, enc, next) {
                 crows.push(crow);
@@ -223,18 +226,22 @@ ForkDB.prototype.future = function (hash) {
             }
             
             function end () {
+                var prev = next;
                 if (crows.length === 0) {
                     next = null;
-                    r.push(row);
+                    r.push(prev);
                 }
                 else if (crows.length === 1) {
-                    next = crows[0];
-                    r.push(row);
+                    self.db.get([ 'meta', crows[0].hash ], function (err, v) {
+                        next = v;
+                        r.push(prev);
+                    });
                 }
                 else {
                     next = null;
-                    crows.forEach(function (row) {
-                        r.emit('branch', future_(row));
+                    r.push(prev);
+                    crows.forEach(function (crow) {
+                        r.emit('branch', self.future(crow.hash));
                     });
                 }
             }
