@@ -12,11 +12,15 @@ if (argv.help) return showHelp(0);
 
 var through = require('through2');
 var stringify = require('json-stable-stringify');
+var mkdirp = require('mkdirp');
 
 var dbdir = argv.dbdir;
 var blobdir = argv.blobdir;
 if (dbdir === undefined) dbdir = path.join(argv.dir, 'db');
 if (blobdir === undefined) blobdir = path.join(argv.dir, 'blob');
+
+mkdirp.sync(dbdir);
+mkdirp.sync(blobdir);
 
 var db = require('level-party')(dbdir);
 var fdb = require('../')(db, { dir: blobdir });

@@ -1,0 +1,49 @@
+{
+  "name": "forkdb",
+  "version": "1.0.0",
+  "description": "forking content-addressed append-only historical key/value blue store over leveldb",
+  "main": "index.js",
+  "dependencies": {
+    "bytewise": "~0.7.1",
+    "content-addressable-blob-store": "^4.0.4",
+    "defined": "~0.0.0",
+    "duplexer2": "~0.0.2",
+    "has": "~0.0.1",
+    "isarray": "~0.0.1",
+    "json-stable-stringify": "^1.0.0",
+    "level": "~0.18.0",
+    "level-party": "^1.0.1",
+    "level-sublevel": "^6.3.11",
+    "mkdirp": "~0.5.0",
+    "read-only-stream": "^1.1.1",
+    "readable-stream": "^1.1.13",
+    "stream-combiner2": "^1.0.1",
+    "subarg": "~0.0.1",
+    "through2": "^1.1.1"
+  },
+  "devDependencies": {
+    "tape": "^3.0.0"
+  },
+  "scripts": {
+    "test": "tape test/*.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git://github.com/substack/forkdb.git"
+  },
+  "homepage": "https://github.com/substack/forkdb",
+  "keywords": [
+    "db",
+    "database",
+    "fork",
+    "conflict",
+    "blob",
+    "document"
+  ],
+  "author": {
+    "name": "James Halliday",
+    "email": "mail@substack.net",
+    "url": "http://substack.net"
+  },
+  "license": "MIT"
+}
