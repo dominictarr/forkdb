@@ -3,6 +3,9 @@
   "version": "1.0.0",
   "description": "forking content-addressed append-only historical key/value blue store over leveldb",
   "main": "index.js",
+  "bin": {
+    "forkdb": "bin/cmd.js"
+  },
   "dependencies": {
     "bytewise": "~0.7.1",
     "content-addressable-blob-store": "^4.0.4",
