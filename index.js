@@ -197,7 +197,7 @@ ForkDB.prototype.history = function (hash) {
             next = null;
             r.push(row);
             prev.forEach(function (p) {
-                r.emit('branch', self.history(p.key, p.hash));
+                r.emit('branch', self.history(p.hash));
             });
         }
     }
