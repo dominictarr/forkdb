@@ -105,7 +105,7 @@ ForkDB.prototype.tails = function (key) {
     ]));
 };
 
-ForkDB.prototype.all = function (opts) {
+ForkDB.prototype.list = function (opts) {
     if (!opts) opts = {};
     var opts = {
         gt: [ 'meta', defined(opts.gt, null) ],
@@ -201,6 +201,7 @@ ForkDB.prototype.history = function (hash) {
 };
 
 ForkDB.prototype.future = function (hash) {
+    // todo
 };
 
 function getPrev (meta) {

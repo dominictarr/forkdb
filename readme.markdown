@@ -4,15 +4,13 @@ forking content-addressed append-only historical key/value blob store over
 leveldb
 
 Conflicts are unavoidable, particularly when latency is high. Instead of hiding
-that fundamental fact or going into conflict panic mode (like couchdb does),
-forkdb anticipates and welcomes conflicts.
+that fundamental fact or going into a conflict panic mode that demands an
+immediate resolution, forkdb anticipates and welcomes conflicts.
 
 Interfaces built on forkdb should be honest about the underlying data model and
 embrace conflicts too.
 
 # example
-
-
 
 Here we'll create a new document with the contents `beep boop` under the key
 `"blorp"`.
