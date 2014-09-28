@@ -7,6 +7,8 @@ var through = require('through2');
 var duplexer = require('duplexer2');
 var parse = require('parse-header-stream');
 var json = require('json-stable-stringify');
+var readonly = require('read-only-stream');
+var combine = require('stream-combiner2');
 
 module.exports = ForkDB;
 
@@ -60,11 +62,18 @@ ForkDB.prototype.createWriteStream = function (key, meta, cb) {
 };
 
 ForkDB.prototype.heads = function (key) {
+    var gkey = key === undefined ? null : key;
     var opts = {
-        gt: [ 'head', key, null ],
+        gt: [ 'head', gkey, null ],
         lt: [ 'head', key, undefined ]
     };
-    return this.db.createReadStream(opts);
+    return readonly(combine([
+        this.db.createReadStream(opts),
+        through.obj(function (row, enc, next) {
+            this.push(row.key.slice(1));
+            next();
+        })
+    ]));
 };
 
 ForkDB.prototype.tails = function () {
