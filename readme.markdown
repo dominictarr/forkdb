@@ -32,12 +32,12 @@ created and see that the head has updated to the new document's hash:
 
 ```
 $ echo BEEP BOOP | forkdb create --key=blorp --prev [ --hash=9c0564511643d3bc841d769e27b1f4e669a75695f2a2f6206bca967f298390a0 --key=blorp ]
-3762e2b940fe628e7cb90895c7c1614e227e5f13ef3a1346927da06e019d833c
+fcbcbe4389433dd9652d279bb9044b8e570d7f033fab18189991354228a43e99
 ```
 
 ```
 $ forkdb heads
-{"hash":"3762e2b940fe628e7cb90895c7c1614e227e5f13ef3a1346927da06e019d833c","key":"blorp"}
+{"hash":"fcbcbe4389433dd9652d279bb9044b8e570d7f033fab18189991354228a43e99","key":"blorp"}
 ```
 
 But suppose that while we were making our `BEEP BOOP` update, somebody else was
@@ -46,15 +46,16 @@ conflict!
 
 ```
 $ echo BeEp BoOp | forkdb create --key=blorp --prev [ --hash=9c0564511643d3bc841d769e27b1f4e669a75695f2a2f6206bca967f298390a0 --key=blorp ]
-d7b88783f8c52bfc370cddcea600c6328ba7ca3251a669c82e71a1c0ca73f0ba
+c3122c908bf03bb8b36eaf3b46e27437e23827e6a341439974d5d38fb22fbdfc
 ```
 
 This is no problem for forkdb. There are just 2 heads now, which is completely
 fine:
 
 ```
-{"hash":"3762e2b940fe628e7cb90895c7c1614e227e5f13ef3a1346927da06e019d833c","key":"blorp"}
-{"hash":"d7b88783f8c52bfc370cddcea600c6328ba7ca3251a669c82e71a1c0ca73f0ba","key":"blorp"}
+$ forkdb heads
+{"hash":"c3122c908bf03bb8b36eaf3b46e27437e23827e6a341439974d5d38fb22fbdfc","key":"blorp"}
+{"hash":"fcbcbe4389433dd9652d279bb9044b8e570d7f033fab18189991354228a43e99","key":"blorp"}
 ```
 
 A UI could show both (or more!) versions side by side or perhaps have a
@@ -64,27 +65,27 @@ However, we can also merge these 2 documents back into 1 by creating a new
 document that points back and both heads:
 
 ```
-$ echo BEEPITY BOOPITY | forkdb create --key=blorp --prev [ --hash=3762e2b940fe628e7cb90895c7c1614e227e5f13ef3a1346927da06e019d833c --key=blorp ] --prev [ --hash=d7b88783f8c52bfc370cddcea600c6328ba7ca3251a669c82e71a1c0ca73f0ba --key=blorp ]
-e9f292a310cea3d53ff05624e4ab50251d03250eef51a3607320d13af17971c4
+$ echo BEEPITY BOOPITY | forkdb create --key=blorp --prev [ --hash=fcbcbe4389433dd9652d279bb9044b8e570d7f033fab18189991354228a43e99 --key=blorp ] --prev [ --hash=c3122c908bf03bb8b36eaf3b46e27437e23827e6a341439974d5d38fb22fbdfc --key=blorp ]
+e3bd9d14b8c298e57dbbb10235306bd46d12ebaeccd067dc9cdf7ed25b10a96d
 ```
 
 and now we're back to a single head:
 
 ```
 $ forkdb heads blorp
-{"hash":"e9f292a310cea3d53ff05624e4ab50251d03250eef51a3607320d13af17971c4","key":"blorp"}
+{"hash":"e3bd9d14b8c298e57dbbb10235306bd46d12ebaeccd067dc9cdf7ed25b10a96d","key":"blorp"}
 ```
 
 However, all of the previous states of the blorp key were saved into the
 history, which we can inspect by picking a key (in this case, the new head
-e9f292a3) and traversing back through the branches to end up at the tail:
+e3bd9d14) and traversing back through the branches to end up at the tail:
 
 ```
-$ forkdb history e9f292a310cea3d53ff05624e4ab50251d03250eef51a3607320d13af17971c4
-+- blorp :: e9f292a310cea3d53ff05624e4ab50251d03250eef51a3607320d13af17971c4
- +- blorp :: 3762e2b940fe628e7cb90895c7c1614e227e5f13ef3a1346927da06e019d833c
+$ forkdb history e3bd9d14b8c298e57dbbb10235306bd46d12ebaeccd067dc9cdf7ed25b10a96d
++- blorp :: e3bd9d14b8c298e57dbbb10235306bd46d12ebaeccd067dc9cdf7ed25b10a96d
+ +- blorp :: fcbcbe4389433dd9652d279bb9044b8e570d7f033fab18189991354228a43e99
  |- blorp :: 9c0564511643d3bc841d769e27b1f4e669a75695f2a2f6206bca967f298390a0
- +- blorp :: d7b88783f8c52bfc370cddcea600c6328ba7ca3251a669c82e71a1c0ca73f0ba
+ +- blorp :: c3122c908bf03bb8b36eaf3b46e27437e23827e6a341439974d5d38fb22fbdfc
  |- blorp :: 9c0564511643d3bc841d769e27b1f4e669a75695f2a2f6206bca967f298390a0
 ```
 
@@ -166,8 +167,8 @@ Save the data written to the writable stream `w` into blob storage at
 ``` js
 meta.key = 'blorp';
 meta.prev = [
-  { key: 'blorp', hash: '3762e2b940fe628e7cb90895c7c1614e227e5f13ef3a1346927da06e019d833c' },
-  { key: 'blorp', hash: 'd7b88783f8c52bfc370cddcea600c6328ba7ca3251a669c82e71a1c0ca73f0ba' }
+  { key: 'blorp', hash: 'fcbcbe4389433dd9652d279bb9044b8e570d7f033fab18189991354228a43e99' },
+  { key: 'blorp', hash: 'c3122c908bf03bb8b36eaf3b46e27437e23827e6a341439974d5d38fb22fbdfc' }
 ];
 ```
 
