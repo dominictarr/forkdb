@@ -1,4 +1,4 @@
-var sublevel = require('level-sublevel');
+var sublevel = require('level-sublevel/bytewise');
 var bytewise = require('bytewise');
 var blob = require('content-addressable-blob-store');
 var defined = require('defined');
@@ -6,6 +6,7 @@ var isarray = require('isarray');
 var through = require('through2');
 var duplexer = require('duplexer2');
 var parse = require('parse-header-stream');
+var json = require('json-stable-stringify');
 
 module.exports = ForkDB;
 
@@ -23,25 +24,38 @@ function ForkDB (db, opts) {
     );
 }
 
-ForkDB.prototype.put = function (key, prev, cb) {
-    if (typeof prev === 'function') {
-        cb = prev;
-        prev = null;
+ForkDB.prototype.createWriteStream = function (key, meta, cb) {
+    var self = this;
+    if (typeof meta === 'function') {
+        cb = meta;
+        meta = {};
     }
-    if (!prev) prev = [];
-    if (!isarray(prev)) prev = [ prev ];
-    prev = prev.filter(Boolean);
-    
-    var meta = { prev: prev };
+    if (!meta || typeof meta !== 'object') meta = {};
     
     var w = this.store.createWriteStream();
-    w.write(JSON.stringify(meta) + '\n');
-    
     if (cb) w.on('error', cb);
-    w.once('finish', function () {
-        if (cb) cb(null, w.key);
+    
+    Object.keys(meta).sort().forEach(function (key) {
+        var value = meta[key];
+        w.write(json.stringify(key) + ':' + json.stringify(value) + '\n');
     });
     
+    w.once('finish', function () {
+        var rows = [
+            { type: 'put', key: [ 'head', key, w.key ], value: 0 },
+            { type: 'put', key: [ 'meta', w.key ], value: meta },
+        ];
+        var prev = meta.prev || [];
+        if (!isarray(prev)) prev = [ prev ];
+        prev.filter(Boolean).forEach(function (id) {
+            rows.push({ type: 'del', key: [ 'head', key, id ] });
+        });
+        
+        self.db.batch(rows, function (err) {
+            if (err) w.emit('error', err)
+            else if (cb) cb(null, w.key)
+        });
+    });
     return w;
 };
 
@@ -93,9 +107,6 @@ ForkDB.prototype.get = function (id, cb) {
 };
 
 ForkDB.prototype.history = function (id) {
-    
-    this.db.createReadStream(opts)
-    
     var opts = {
         gt: [ 'tail', key, null ],
         lt: [ 'tail', key, undefined ]
