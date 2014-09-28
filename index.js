@@ -114,10 +114,7 @@ ForkDB.prototype.all = function (opts) {
     return readonly(combine([
         this.db.createReadStream(opts),
         through.obj(function (row, enc, next) {
-            this.push({
-                key: row.key[1],
-                hash: row.key[2]
-            });
+            this.push(row.value);
             next();
         })
     ]));

@@ -12,6 +12,9 @@ embrace conflicts too.
 
 # example
 
+Create a forkdb instance by passing in a leveldown or levelup handle and a path
+to where the blobs should go:
+
 ``` js
 var db = require('level')('/tmp/edit.db');
 var fdb = require('forkdb')(db, { dir: '/tmp/edit.blob' });
