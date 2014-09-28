@@ -52,6 +52,13 @@ ForkDB.prototype.createWriteStream = function (key, meta, cb) {
         prev.filter(Boolean).forEach(function (id) {
             rows.push({ type: 'del', key: [ 'head', key, id ] });
         });
+        if (prev.length === 0) {
+            rows.push({
+                type: 'put',
+                key: [ 'tail', key, w.key ],
+                value: 0
+            });
+        }
         
         self.db.batch(rows, function (err) {
             if (err) w.emit('error', err)
@@ -79,12 +86,22 @@ ForkDB.prototype.heads = function (key) {
     ]));
 };
 
-ForkDB.prototype.tails = function () {
+ForkDB.prototype.tails = function (key) {
+    var gkey = key === undefined ? null : key;
     var opts = {
-        gt: [ 'tail', key, null ],
+        gt: [ 'tail', gkey, null ],
         lt: [ 'tail', key, undefined ]
     };
-    return this.db.createReadStream(opts);
+    return readonly(combine([
+        this.db.createReadStream(opts),
+        through.obj(function (row, enc, next) {
+            this.push({
+                key: row.key[1],
+                id: row.key[2]
+            });
+            next();
+        })
+    ]));
 };
 
 ForkDB.prototype.meta = function (id, cb) {
