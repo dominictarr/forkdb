@@ -25,11 +25,14 @@ mkdirp.sync(blobdir);
 var db = require('level-party')(dbdir);
 var fdb = require('../')(db, { dir: blobdir });
 var showHistory = require('./lib/show_history.js');
+var showFuture = require('./lib/show_future.js');
 
 var cmd = argv._[0];
 
 if (cmd === 'list') {
-    fdb.list(argv).pipe(ndjson()).pipe(process.stdout);
+    var s = fdb.list(argv).pipe(ndjson());
+    s.pipe(process.stdout);
+    s.on('end', function () { db.close() });
 }
 else if (cmd === 'create') {
     var meta = {};
@@ -69,18 +72,19 @@ else if (cmd === 'tails') {
     s.pipe(process.stdout);
     s.on('end', function () { db.close() });
 }
-else if (cmd === 'history') {
-    if (argv._.length < 2) return showHelp(1);
-    showHistory(fdb, argv._[1], function () { db.close() });
-}
 else if (cmd === 'links') {
     if (argv._.length < 2) return showHelp(1);
     var s = fdb.getLinks(argv._[1]).pipe(ndjson());
     s.pipe(process.stdout);
     s.on('end', function () { db.close() });
 }
+else if (cmd === 'history') {
+    if (argv._.length < 2) return showHelp(1);
+    showHistory(fdb, argv._[1], function () { db.close() });
+}
 else if (cmd === 'future') {
-    // todo
+    if (argv._.length < 2) return showHelp(1);
+    showFuture(fdb, argv._[1], function () { db.close() });
 }
 else showHelp(1);
 
