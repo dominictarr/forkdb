@@ -1,6 +1,6 @@
 var db = require('level')('/tmp/edit.db');
 var fdb = require('../')(db, { dir: '/tmp/edit.blob' });
-var meta = require('minimist')(process.argv.slice(2));
+var meta = require('subarg')(process.argv.slice(2));
 
 var w = fdb.createWriteStream(meta, function (err, id) {
     if (err) {

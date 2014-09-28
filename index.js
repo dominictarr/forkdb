@@ -48,8 +48,16 @@ ForkDB.prototype.createWriteStream = function (meta, cb) {
             rows.push({ type: 'put', key: [ 'tail', meta.key, w.key ], value: 0 });
         }
         prev.forEach(function (p) {
-            rows.push({ type: 'del', key: [ 'head', p.key, p.hash ], value: 0 });
-            rows.push({ type: 'put', key: [ 'link', p.hash, w.key ], value: 0 });
+            rows.push({
+                type: 'del',
+                key: [ 'head', p.key, p.hash ],
+                value: 0
+            });
+            rows.push({
+                type: 'put',
+                key: [ 'link', p.hash, w.key ],
+                value: meta.key
+            });
         });
         rows.push({ type: 'put', key: [ 'head', meta.key, w.key ], value: 0 });
         rows.push({ type: 'put', key: [ 'meta', w.key ], value: ref });
@@ -153,7 +161,7 @@ ForkDB.prototype.getLinks = function (hash) {
         this.db.createReadStream(opts),
         through.obj(function (row, enc, next) {
             this.push({
-                key: row.key[1],
+                key: row.value,
                 hash: row.key[2]
             });
             next();
@@ -169,29 +177,30 @@ ForkDB.prototype.history = function (hash) {
     r._read = function () {
         if (!next) return r.push(null);
         
-        self.db.get([ 'meta', next ], function (err, row) {
-            if (err) return r.emit('error', err)
-            var ref = { hash: next, doc: row };
-            var prev = getPrev(row.meta);
-            
-            if (prev.length === 0) {
-                next = null;
-                r.push(ref);
-            }
-            else if (prev.length === 1) {
-                next = row.meta.prev[0].hash;
-                r.push(ref);
-            }
-            else {
-                next = null;
-                r.push(ref);
-                prev.forEach(function (p) {
-                    r.emit('branch', self.history(p.key, p.hash));
-                });
-            }
-        });
+        self.db.get([ 'meta', next ], onget);
     };
     return r;
+    
+    function onget (err, row) {
+        if (err) return r.emit('error', err)
+        var prev = getPrev(row && row.meta);
+        
+        if (prev.length === 0) {
+            next = null;
+            r.push(row);
+        }
+        else if (prev.length === 1) {
+            next = prev[0].hash;
+            r.push(row);
+        }
+        else {
+            next = null;
+            r.push(row);
+            prev.forEach(function (p) {
+                r.emit('branch', self.history(p.key, p.hash));
+            });
+        }
+    }
 };
 
 ForkDB.prototype.future = function (hash) {
