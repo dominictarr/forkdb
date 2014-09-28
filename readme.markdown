@@ -155,7 +155,10 @@ usage: forkdb COMMAND OPTIONS
   Global options are:
 
     -d, --dir  directory to use for both db and blob storage
+               If not specified, uses $FORKDB_DIR or ./forkdb
+ 
     --blobdir  directory to use for blob storage
+
     --dbdir    directory to use for db
 
 forkdb create '{"key":"...","prev":[...]}'
@@ -206,3 +209,4 @@ forkdb help
   Show this message.
 
 ```
+
