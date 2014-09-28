@@ -89,9 +89,8 @@ ForkDB.prototype.heads = function (key) {
 };
 
 ForkDB.prototype.tails = function (key) {
-    var gkey = key === undefined ? null : key;
     var opts = {
-        gt: [ 'tail', gkey, null ],
+        gt: [ 'tail', defined(key, null), null ],
         lt: [ 'tail', key, undefined ]
     };
     return readonly(combine([
@@ -106,10 +105,11 @@ ForkDB.prototype.tails = function (key) {
     ]));
 };
 
-ForkDB.prototype.all = function (key, cb) {
+ForkDB.prototype.all = function (opts) {
+    if (!opts) opts = {};
     var opts = {
-        gt: [ 'meta-key', key, null ],
-        lt: [ 'meta-key', key, undefined ]
+        gt: [ 'meta', defined(opts.gt, null) ],
+        lt: [ 'meta', defined(opts.lt, undefined) ]
     };
     return readonly(combine([
         this.db.createReadStream(opts),
