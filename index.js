@@ -200,7 +200,47 @@ ForkDB.prototype.history = function (hash) {
 };
 
 ForkDB.prototype.future = function (hash) {
-    // todo
+    var self = this;
+    var output = through.obj();
+    self.db.get([ 'meta', hash ], function (err, row) {
+        future_(row).pipe(output);
+    });
+    return readonly(output);
+    
+    function future_ (row) {
+        var r = new Readable({ objectMode: true });
+        var next = row;
+        
+        r._read = function () {
+            if (!next) return r.push(null);
+            
+            var crows = [];
+            self.getLinks(next).pipe(through.obj(write, end));
+            
+            function write (crow, enc, next) {
+                crows.push(crow);
+                next();
+            }
+            
+            function end () {
+                if (crows.length === 0) {
+                    next = null;
+                    r.push(row);
+                }
+                else if (crows.length === 1) {
+                    next = crows[0];
+                    r.push(row);
+                }
+                else {
+                    next = null;
+                    crows.forEach(function (row) {
+                        r.emit('branch', future_(row));
+                    });
+                }
+            }
+        };
+        return r;
+    }
 };
 
 function getPrev (meta) {
