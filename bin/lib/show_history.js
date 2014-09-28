@@ -1,4 +1,4 @@
-module.exports = function (fdb, hash) {
+module.exports = function (fdb, hash, cb) {
     var stack = [];
     show(fdb.history(hash), 0);
     
@@ -14,6 +14,7 @@ module.exports = function (fdb, hash) {
         });
         h.on('end', function () {
             if (stack.length) stack.shift()();
+            else if (cb) cb();
         });
         
         h.on('branch', function (b) {

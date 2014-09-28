@@ -8,7 +8,7 @@ var argv = require('subarg')(process.argv.slice(2), {
     alias: { d: 'dir', h: 'help' },
     default: { dir: defined(process.env.FORKDB_DIR, './forkdb') }
 });
-if (argv.help) return showHelp(0);
+if (argv.help || argv._[0] === 'help') return showHelp(0);
 
 var through = require('through2');
 var stringify = require('json-stable-stringify');
@@ -38,35 +38,47 @@ else if (cmd === 'create') {
     if (argv.prev) meta.prev = argv.prev;
     
     var w = fdb.createWriteStream(meta, function (err, id) {
-        if (err) error(err)
-        else console.log(id)
+        if (err) return error(err);
+        console.log(id);
+        db.close();
     });
     process.stdin.pipe(w);
 }
 else if (cmd === 'get') {
     if (argv._.length < 2) return showHelp(1);
-    fdb.get(argv._[1]).pipe(process.stdout);
+    var s = fdb.get(argv._[1]);
+    s.pipe(process.stdout);
+    s.on('end', function () { db.close() });
 }
 else if (cmd === 'meta') {
     if (argv._.length < 2) return showHelp(1);
     fdb.getMeta(argv._[1], function (err, row) {
-        if (err) error(err)
-        else console.log(stringify({ space: 2 }));
+        if (err) return error(err)
+        console.log(stringify({ space: 2 }));
+        db.close();
     });
 }
 else if (cmd === 'heads') {
-    fdb.heads(key).pipe(ndjson()).pipe(process.stdout);
+    var s = fdb.heads(key).pipe(ndjson());
+    s.pipe(process.stdout);
+    s.on('end', function () { db.close() });
 }
 else if (cmd === 'tails') {
-    fdb.tails(key).pipe(ndjson()).pipe(process.stdout);
+    var s = fdb.tails(key).pipe(ndjson());
+    s.pipe(process.stdout);
+    s.on('end', function () { db.close() });
 }
 else if (cmd === 'history') {
     if (argv._.length < 2) return showHelp(1);
-    showHistory(fdb, argv._[1]);
+    showHistory(fdb, argv._[1], function () {
+        db.close();
+    });
 }
 else if (cmd === 'links') {
     if (argv._.length < 2) return showHelp(1);
-    fdb.getLinks(argv._[1]).pipe(ndjson()).pipe(process.stdout);
+    var s = fdb.getLinks(argv._[1]).pipe(ndjson());
+    s.pipe(process.stdout);
+    s.on('end', function () { db.close() });
 }
 else if (cmd === 'future') {
     // todo
