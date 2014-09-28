@@ -6,7 +6,7 @@ var isarray = require('isarray');
 var through = require('through2');
 var duplexer = require('duplexer2');
 var parse = require('parse-header-stream');
-var json = require('json-stable-stringify');
+var stringify = require('json-stable-stringify');
 var readonly = require('read-only-stream');
 var combine = require('stream-combiner2');
 
@@ -39,7 +39,7 @@ ForkDB.prototype.createWriteStream = function (key, meta, cb) {
     
     Object.keys(meta).sort().forEach(function (key) {
         var value = meta[key];
-        w.write(json.stringify(key) + ':' + json.stringify(value) + '\n');
+        w.write(stringify(key) + ':' + stringify(value) + '\n');
     });
     
     w.once('finish', function () {
@@ -49,8 +49,8 @@ ForkDB.prototype.createWriteStream = function (key, meta, cb) {
         ];
         var prev = meta.prev || [];
         if (!isarray(prev)) prev = [ prev ];
-        prev.filter(Boolean).forEach(function (id) {
-            rows.push({ type: 'del', key: [ 'head', key, id ] });
+        prev.filter(Boolean).forEach(function (p) {
+            rows.push({ type: 'del', key: [ 'head', p.key, p.hash ] });
         });
         if (prev.length === 0) {
             rows.push({
@@ -79,7 +79,7 @@ ForkDB.prototype.heads = function (key) {
         through.obj(function (row, enc, next) {
             this.push({
                 key: row.key[1],
-                id: row.key[2]
+                hash: row.key[2]
             });
             next();
         })
@@ -97,22 +97,22 @@ ForkDB.prototype.tails = function (key) {
         through.obj(function (row, enc, next) {
             this.push({
                 key: row.key[1],
-                id: row.key[2]
+                hash: row.key[2]
             });
             next();
         })
     ]));
 };
 
-ForkDB.prototype.meta = function (id, cb) {
-    this.db.get([ 'meta', id ], cb);
+ForkDB.prototype.meta = function (hash, cb) {
+    this.db.get([ 'meta', hash ], cb);
 };
 
 ForkDB.prototype.revert = function () {
 };
 
-ForkDB.prototype.get = function (id, cb) {
-    var r = this.store.createReadStream({ key: id });
+ForkDB.prototype.get = function (hash, cb) {
+    var r = this.store.createReadStream({ key: hash });
     var output = through();
     var p = parse(function (err, headers) {
         if (err) return p.emit('error', err);
@@ -135,7 +135,7 @@ ForkDB.prototype.get = function (id, cb) {
     return dup;
 };
 
-ForkDB.prototype.history = function (id) {
+ForkDB.prototype.history = function (hash) {
     var opts = {
         gt: [ 'tail', key, null ],
         lt: [ 'tail', key, undefined ]
