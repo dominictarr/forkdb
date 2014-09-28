@@ -9,7 +9,7 @@ var stringify = require('json-stable-stringify');
 var readonly = require('read-only-stream');
 var combine = require('stream-combiner2');
 var Readable = require('readable-stream').Readable;
-var shasum = require('shasum');
+var has = require('has');
 
 module.exports = ForkDB;
 
@@ -27,7 +27,7 @@ function ForkDB (db, opts) {
     );
 }
 
-ForkDB.prototype.createWriteStream = function (key, meta, cb) {
+ForkDB.prototype.createWriteStream = function (meta, cb) {
     var self = this;
     if (typeof meta === 'function') {
         cb = meta;
@@ -36,32 +36,27 @@ ForkDB.prototype.createWriteStream = function (key, meta, cb) {
     if (!meta || typeof meta !== 'object') meta = {};
     
     var w = this.store.createWriteStream();
+    w.write(stringify(meta) + '\n');
     if (cb) w.on('error', cb);
     
     w.once('finish', function () {
-        var prev = meta.prev || [];
-        if (!isarray(prev)) prev = [ prev ];
-        prev = prev.filter(Boolean);
-        meta.prev = prev;
-        
-        var ref = { key: key, data: w.key, meta: meta };
-        var hash = shasum(ref);
-        
+        var prev = getPrev(meta);
+        var ref = { hash: w.key, meta: meta };
         var rows = [];
+        
         if (prev.length === 0) {
-            rows.push({ type: 'put', key: [ 'tail', key, w.key ], value: 0 });
+            rows.push({ type: 'put', key: [ 'tail', meta.key, w.key ], value: 0 });
         }
         prev.forEach(function (p) {
             rows.push({ type: 'del', key: [ 'head', p.key, p.hash ], value: 0 });
-            rows.push({ type: 'put', key: [ 'link', hash, p.hash ], value: 0 });
+            rows.push({ type: 'put', key: [ 'link', p.hash, w.key ], value: 0 });
         });
-        rows.push({ type: 'put', key: [ 'head', key, hash ], value: w.key });
-        rows.push({ type: 'put', key: [ 'meta-key', key, hash ], value: 0 });
-        rows.push({ type: 'put', key: [ 'meta', hash ], value: ref });
+        rows.push({ type: 'put', key: [ 'head', meta.key, w.key ], value: 0 });
+        rows.push({ type: 'put', key: [ 'meta', w.key ], value: ref });
         
         self.db.batch(rows, function (err) {
             if (err) w.emit('error', err)
-            else if (cb) cb(null, hash)
+            else if (cb) cb(null, w.key)
         });
     });
     return w;
@@ -125,14 +120,23 @@ ForkDB.prototype.get = function (hash, cb) {
     var output = through();
     if (cb) output.on('error', cb);
     
-    if (typeof hash === 'object') {
-        return self.store.createReadStream({ key: hash.data });
+    var r = self.store.createReadStream({ key: hash });
+    var line = false;
+    return readonly(r.pipe(through(write)));
+    
+    function write (buf, enc, next) {
+        if (line) {
+            this.push(buf);
+            return next();
+        }
+        for (var i = 0; i < buf.length; i++) {
+            if (buf[i] === 10) {
+                line = true;
+                this.push(buf.slice(i+1));
+                return next();
+            }
+        }
     }
-    self.db.get([ 'meta', hash ], function (err, row) {
-        if (err) return output.emit('error', err);
-        self.store.createReadStream({ key: row.data }).pipe(output);
-    });
-    return readonly(output);
 };
 
 ForkDB.prototype.getMeta = function (hash, cb) {
@@ -168,19 +172,20 @@ ForkDB.prototype.history = function (hash) {
         self.db.get([ 'meta', next ], function (err, row) {
             if (err) return r.emit('error', err)
             var ref = { hash: next, doc: row };
+            var prev = getPrev(row.meta);
             
-            if (!row.meta || !row.meta.prev || row.meta.prev.length === 0) {
+            if (prev.length === 0) {
                 next = null;
                 r.push(ref);
             }
-            else if (row.meta.prev.length === 1) {
+            else if (prev.length === 1) {
                 next = row.meta.prev[0].hash;
                 r.push(ref);
             }
             else {
                 next = null;
                 r.push(ref);
-                row.meta.prev.forEach(function (p) {
+                prev.forEach(function (p) {
                     r.emit('branch', self.history(p.key, p.hash));
                 });
             }
@@ -191,3 +196,11 @@ ForkDB.prototype.history = function (hash) {
 
 ForkDB.prototype.future = function (hash) {
 };
+
+function getPrev (meta) {
+    if (!meta) return [];
+    if (!has(meta, 'prev')) return [];
+    var prev = meta.prev;
+    if (!isarray(prev)) prev = [ prev ];
+    return prev.filter(Boolean);
+}
