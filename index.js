@@ -107,9 +107,10 @@ ForkDB.prototype.tails = function (key) {
 
 ForkDB.prototype.list = function (opts) {
     if (!opts) opts = {};
-    var opts = {
+    opts = {
         gt: [ 'meta', defined(opts.gt, null) ],
-        lt: [ 'meta', defined(opts.lt, undefined) ]
+        lt: [ 'meta', defined(opts.lt, undefined) ],
+        limit: opts.limit
     };
     return readonly(combine([
         this.db.createReadStream(opts),
