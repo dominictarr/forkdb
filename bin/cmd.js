@@ -11,6 +11,7 @@ var argv = require('subarg')(process.argv.slice(2), {
 if (argv.help || argv._[0] === 'help') return showHelp(0);
 
 var through = require('through2');
+var isarray = require('isarray');
 var stringify = require('json-stable-stringify');
 var mkdirp = require('mkdirp');
 
@@ -39,7 +40,14 @@ else if (cmd === 'create') {
     if (argv._[1] !== undefined) meta = JSON.parse(argv._[1]);
     
     if (argv.key) meta.key = argv.key;
-    if (argv.prev) meta.prev = argv.prev;
+    if (argv.prev) {
+        meta.prev = (isarray(argv.prev) ? argv.prev : [ argv.prev ])
+            .map(function (p) {
+                if (p._) delete p._;
+                return p;
+            })
+        ;
+    }
     
     var w = fdb.createWriteStream(meta, function (err, id) {
         if (err) return error(err);
