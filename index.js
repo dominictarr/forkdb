@@ -70,7 +70,10 @@ ForkDB.prototype.heads = function (key) {
     return readonly(combine([
         this.db.createReadStream(opts),
         through.obj(function (row, enc, next) {
-            this.push(row.key.slice(1));
+            this.push({
+                key: row.key[1],
+                id: row.key[2]
+            });
             next();
         })
     ]));
