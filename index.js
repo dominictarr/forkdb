@@ -23,7 +23,7 @@ function ForkDB (db, opts) {
     });
     this.store = defined(
         opts.store,
-        blob({ dir: defined(opts.dir, './forkdb.blobs') })
+        blob({ dir: defined(opts.dir, './forkdb.blob') })
     );
 }
 
@@ -71,9 +71,8 @@ ForkDB.prototype.createWriteStream = function (meta, cb) {
 };
 
 ForkDB.prototype.heads = function (key) {
-    var gkey = key === undefined ? null : key;
     var opts = {
-        gt: [ 'head', gkey, null ],
+        gt: [ 'head', defined(key, null), null ],
         lt: [ 'head', key, undefined ]
     };
     return readonly(combine([
@@ -121,10 +120,9 @@ ForkDB.prototype.list = function (opts) {
     ]));
 };
 
-ForkDB.prototype.get = function (hash, cb) {
+ForkDB.prototype.get = function (hash) {
     var self = this;
     var output = through();
-    if (cb) output.on('error', cb);
     
     var r = self.store.createReadStream({ key: hash });
     var line = false;

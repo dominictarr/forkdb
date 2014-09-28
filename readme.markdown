@@ -147,6 +147,82 @@ slowly, from the backward links.
 var forkdb = require('forkdb')
 ```
 
+## var fdb = forkdb(db, opts)
+
+Create a new forkdb instance `fdb` from a levelup or leveldown `db`.
+
+Optionally set:
+
+* `opts.dir` - directory to use for blob storage, default: './forkdb.blob'
+* `opts.store` - content-addressable [abstract-blob-store](https://npmjs.org/package/abstract-blob-store) to use instead of
+[content-addressable-blob-store](https://npmjs.org/package/content-addressable-blob-store)
+
+## var w = fdb.createWriteStream(meta, cb)
+
+Save the data written to the writable stream `w` into blob storage at
+`meta.key`. To link back to previous documents, specify an array of objects with
+`key` and `hash` properties as `meta.prev`. For example:
+
+``` js
+meta.key = 'blorp';
+meta.prev = [
+  { key: 'blorp', hash: '3762e2b940fe628e7cb90895c7c1614e227e5f13ef3a1346927da06e019d833c' },
+  { key: 'blorp', hash: 'd7b88783f8c52bfc370cddcea600c6328ba7ca3251a669c82e71a1c0ca73f0ba' }
+];
+```
+
+## var r = fdb.heads(key)
+
+Return a readable object stream `r` that outputs an object with `key` and `hash`
+properties for every head of `key`.
+
+If `key` is undefined, all heads from all the keys are output.
+
+## var r = fdb.tails(key)
+
+Return a readable object stream `r` that outputs an object with `key` and `hash`
+properties for every tail of `key`.
+
+If `key` is undefined, all tails from all the keys are output.
+
+## var r = fdb.list(opts)
+
+Return a readable object stream `r` that outputs each metadata object for every
+document in the database.
+
+Constrain the output stream by passing in `opts.gt`, `opts.lt`, or `opts.limit`.
+
+## var r = fdb.get(hash)
+
+Return a readable stream `r` with the blob content at `hash`.
+
+## fdb.getMeta(hash, cb) 
+
+Get the metadata for `hash` and call `cb(err, meta)` with the result.
+
+## var r = fdb.getLinks(hash)
+
+Return a readable object stream `r` that outputs an object with `key` and `hash`
+properties for every forward link of `hash`.
+
+## var r = fdb.history(hash)
+
+Return a readable object stream `r` that traverses backward starting from
+`hash`, outputting a metadata object for each document in the history.
+
+When the traversal comes to a branch, `r` ends and emits a `'branch'` event with
+a `b` object for each branch. The branch object `b` has the same behavior as `r`
+and operates recursively.
+
+## var r = fdb.future(hash)
+
+Return a readable object stream `r` that traverses forward starting from `hash`,
+outputting a metadata object for each document in the future history.
+
+When the traversal comes to a branch, `r` ends and emits a `'branch'` event with
+a `b` object for each branch. The branch object `b` has the same behavior as `r`
+and operates recursively.
+
 # usage
 
 ```
@@ -210,3 +286,21 @@ forkdb help
 
 ```
 
+# install
+
+With [npm](https://npmjs.org),
+to get the `forkdb` command do:
+
+```
+npm install -g forkdb
+```
+
+and to get the library do:
+
+```
+npm install forkdb
+```
+
+# license
+
+MIT
