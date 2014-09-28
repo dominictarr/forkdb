@@ -12,8 +12,21 @@ embrace conflicts too.
 
 # example
 
+
+
+Here we'll create a new document with the contents `beep boop` under the key
+`"blorp"`.
+
+```
+$ echo beep boop | forkdb create '{"key":"blorp"}'
+9c0564511643d3bc841d769e27b1f4e669a75695f2a2f6206bca967f298390a0
+```
+
+## api example
+
 Create a forkdb instance by passing in a leveldown or levelup handle and a path
-to where the blobs should go:
+to where the blobs should go. Then you can use `createWriteStream(meta)` to
+save some data:
 
 ``` js
 var db = require('level')('/tmp/edit.db');
@@ -26,6 +39,13 @@ var w = fdb.createWriteStream(meta, function (err, id) {
     else console.log(id)
 });
 process.stdin.pipe(w);
+```
+
+Now give the program some data on `stdin`:
+
+```
+$ echo beep boop | node create.js '{"key":"blorp"}'
+9c0564511643d3bc841d769e27b1f4e669a75695f2a2f6206bca967f298390a0
 ```
 
 # data model
