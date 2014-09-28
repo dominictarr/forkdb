@@ -1,5 +1,5 @@
 var db = require('level')('/tmp/edit.db');
-var fdb = require('../')(db);
+var fdb = require('../')(db, { dir: '/tmp/edit.blob' });
 var argv = require('minimist')(process.argv.slice(2));
 
 var key = argv._[0];
