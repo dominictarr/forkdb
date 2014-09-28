@@ -75,10 +75,11 @@ else showHelp(1);
 
 function showHelp (code) {
     var r = fs.createReadStream(path.join(__dirname, 'usage.txt'));
+    r.pipe(process.stdout);
     r.on('end', function () {
         if (code) process.exit(code);
+        else if (db) db.close()
     });
-    r.pipe(process.stdout);
 }
 
 function error (err) {
