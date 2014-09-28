@@ -39,23 +39,22 @@ ForkDB.prototype.createWriteStream = function (key, meta, cb) {
     if (cb) w.on('error', cb);
     
     w.once('finish', function () {
-        var rows = [];
         var prev = meta.prev || [];
         if (!isarray(prev)) prev = [ prev ];
-        prev.filter(Boolean).forEach(function (p) {
-            rows.push({ type: 'del', key: [ 'head', p.key, p.hash ] });
-        });
-        if (prev.length === 0) {
-            rows.push({
-                type: 'put',
-                key: [ 'tail', key, w.key ],
-                value: 0
-            });
-        }
+        prev = prev.filter(Boolean);
         meta.prev = prev;
         
         var ref = { key: key, data: w.key, meta: meta };
         var hash = shasum(ref);
+        
+        var rows = [];
+        if (prev.length === 0) {
+            rows.push({ type: 'put', key: [ 'tail', key, w.key ], value: 0 });
+        }
+        prev.forEach(function (p) {
+            rows.push({ type: 'del', key: [ 'head', p.key, p.hash ], value: 0 });
+            rows.push({ type: 'put', key: [ 'link', hash, p.hash ], value: 0 });
+        });
         rows.push({ type: 'put', key: [ 'head', key, hash ], value: w.key });
         rows.push({ type: 'put', key: [ 'meta-key', key, hash ], value: 0 });
         rows.push({ type: 'put', key: [ 'meta', hash ], value: ref });
@@ -121,13 +120,6 @@ ForkDB.prototype.all = function (key, cb) {
     ]));
 };
 
-ForkDB.prototype.meta = function (hash, cb) {
-    this.db.get([ 'meta', hash ], cb);
-};
-
-ForkDB.prototype.revert = function () {
-};
-
 ForkDB.prototype.get = function (hash, cb) {
     var self = this;
     var output = through();
@@ -143,6 +135,28 @@ ForkDB.prototype.get = function (hash, cb) {
     return readonly(output);
 };
 
+ForkDB.prototype.getMeta = function (hash, cb) {
+    this.db.get([ 'meta', hash ], cb);
+};
+
+ForkDB.prototype.getLinks = function (hash) {
+    var ghash = hash === undefined ? null : hash;
+    var opts = {
+        gt: [ 'link', ghash, null ],
+        lt: [ 'link', hash, undefined ]
+    };
+    return readonly(combine([
+        this.db.createReadStream(opts),
+        through.obj(function (row, enc, next) {
+            this.push({
+                key: row.key[1],
+                hash: row.key[2]
+            });
+            next();
+        })
+    ]));
+};
+
 ForkDB.prototype.history = function (hash) {
     var self = this;
     var r = new Readable({ objectMode: true });
@@ -153,19 +167,19 @@ ForkDB.prototype.history = function (hash) {
         
         self.db.get([ 'meta', next ], function (err, row) {
             if (err) return r.emit('error', err)
-            row.hash = next;
+            var ref = { hash: next, doc: row };
             
             if (!row.meta || !row.meta.prev || row.meta.prev.length === 0) {
                 next = null;
-                r.push(row);
+                r.push(ref);
             }
             else if (row.meta.prev.length === 1) {
                 next = row.meta.prev[0].hash;
-                r.push(row);
+                r.push(ref);
             }
             else {
                 next = null;
-                r.push(row);
+                r.push(ref);
                 row.meta.prev.forEach(function (p) {
                     r.emit('branch', self.history(p.key, p.hash));
                 });
@@ -173,4 +187,7 @@ ForkDB.prototype.history = function (hash) {
         });
     };
     return r;
+};
+
+ForkDB.prototype.future = function (hash) {
 };
