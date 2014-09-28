@@ -2,6 +2,8 @@ var db = require('level')('/tmp/edit.db');
 var fdb = require('../')(db, { dir: '/tmp/edit.blob' });
 
 var hash = process.argv[2];
+var stack = [];
+
 show(fdb.history(hash), 0);
 
 function show (h, depth) {
@@ -14,7 +16,11 @@ function show (h, depth) {
             + row.meta.key + ' :: ' + row.hash
         );
     });
+    h.on('end', function () {
+        if (stack.length) stack.shift()();
+    });
+    
     h.on('branch', function (b) {
-        show(b, depth + 1);
+        stack.push(function () { show(b, depth + 1) });
     });
 }
