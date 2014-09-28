@@ -24,6 +24,7 @@ mkdirp.sync(blobdir);
 
 var db = require('level-party')(dbdir);
 var fdb = require('../')(db, { dir: blobdir });
+var showHistory = require('./lib/show_history.js');
 
 var cmd = argv._[0];
 
@@ -59,20 +60,18 @@ else if (cmd === 'meta') {
     });
 }
 else if (cmd === 'heads') {
-    var s = fdb.heads(key).pipe(ndjson());
+    var s = fdb.heads(argv._[1]).pipe(ndjson());
     s.pipe(process.stdout);
     s.on('end', function () { db.close() });
 }
 else if (cmd === 'tails') {
-    var s = fdb.tails(key).pipe(ndjson());
+    var s = fdb.tails(argv._[1]).pipe(ndjson());
     s.pipe(process.stdout);
     s.on('end', function () { db.close() });
 }
 else if (cmd === 'history') {
     if (argv._.length < 2) return showHelp(1);
-    showHistory(fdb, argv._[1], function () {
-        db.close();
-    });
+    showHistory(fdb, argv._[1], function () { db.close() });
 }
 else if (cmd === 'links') {
     if (argv._.length < 2) return showHelp(1);
@@ -100,7 +99,7 @@ function error (err) {
 }
 
 function ndjson () {
-    return through(function (row, enc, next) {
+    return through.obj(function (row, enc, next) {
         this.push(stringify(row) + '\n');
         next();
     });
