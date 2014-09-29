@@ -18,11 +18,11 @@ var hashes = [
     '9c0564511643d3bc841d769e27b1f4e669a75695f2a2f6206bca967f298390a0',
     'fcbcbe4389433dd9652d279bb9044b8e570d7f033fab18189991354228a43e99',
     'c3122c908bf03bb8b36eaf3b46e27437e23827e6a341439974d5d38fb22fbdfc',
-    'e3bd9d14b8c298e57dbbb10235306bd46d12ebaeccd067dc9cdf7ed25b10a96d',
+    'e3bd9d14b8c298e57dbbb10235306bd46d12ebaeccd067dc9cdf7ed25b10a96d'
 ];
 
 test('first doc', function (t) {
-    t.plan(4);
+    t.plan(6);
     
     var expected = {};
     expected.heads = [ { hash: hashes[0], key: 'blorp' } ];
@@ -31,7 +31,9 @@ test('first doc', function (t) {
     expected.links = {};
     
     var w = fdb.createWriteStream({ key: 'blorp' }, onfinish);
-    function onfinish () {
+    function onfinish (err, key) {
+        t.ifError(err);
+        t.equal(key, hashes[0]);
         check(t, fdb, expected);
         fdb.get(hashes[0]).pipe(concat(function (body) {
             t.equal(body.toString('utf8'), 'beep boop\n');
@@ -41,7 +43,7 @@ test('first doc', function (t) {
 });
 
 test('second doc', function (t) {
-    t.plan(6);
+    t.plan(8);
     
     var expected = {};
     expected.heads = [ { hash: hashes[1], key: 'blorp' } ];
@@ -60,7 +62,9 @@ test('second doc', function (t) {
         key: 'blorp',
         prev: [ { hash: hashes[0], key: 'blorp' } ]
     }, onfinish);
-    function onfinish () {
+    function onfinish (err, key) {
+        t.ifError(err);
+        t.equal(key, hashes[1]);
         check(t, fdb, expected);
         fdb.get(hashes[0]).pipe(concat(function (body) {
             t.equal(body.toString('utf8'), 'beep boop\n');
@@ -73,7 +77,7 @@ test('second doc', function (t) {
 });
 
 test('third doc (conflict)', function (t) {
-    t.plan(7);
+    t.plan(9);
     
     var expected = {};
     expected.heads = [
@@ -102,7 +106,9 @@ test('third doc (conflict)', function (t) {
         key: 'blorp',
         prev: [ { hash: hashes[0], key: 'blorp' } ]
     }, onfinish);
-    function onfinish () {
+    function onfinish (err, key) {
+        t.ifError(err);
+        t.equal(key, hashes[2]);
         check(t, fdb, expected);
         fdb.get(hashes[0]).pipe(concat(function (body) {
             t.equal(body.toString('utf8'), 'beep boop\n');
@@ -118,7 +124,7 @@ test('third doc (conflict)', function (t) {
 });
 
 test('fourth doc (merge)', function (t) {
-    t.plan(8);
+    t.plan(10);
     
     var expected = {};
     expected.heads = [ { hash: hashes[3], key: 'blorp' } ];
@@ -157,7 +163,9 @@ test('fourth doc (merge)', function (t) {
         key: 'blorp',
         prev: [ { hash: hashes[0], key: 'blorp' } ]
     }, onfinish);
-    function onfinish () {
+    function onfinish (err, key) {
+        t.ifError(err);
+        t.equal(key, hashes[3]);
         check(t, fdb, expected);
         fdb.get(hashes[0]).pipe(concat(function (body) {
             t.equal(body.toString('utf8'), 'beep boop\n');
