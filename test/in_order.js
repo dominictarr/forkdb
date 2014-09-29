@@ -21,9 +21,14 @@ var hashes = [
     'e3bd9d14b8c298e57dbbb10235306bd46d12ebaeccd067dc9cdf7ed25b10a96d'
 ];
 
-test('populate out of order', function (t) {
+test('populate in order', function (t) {
     var docs = [
+        { hash: hashes[0], body: 'beep boop\n', meta: { key: 'blorp' } },
         { hash: hashes[1], body: 'BEEP BOOP\n', meta: {
+            key: 'blorp',
+            prev: [ { hash: hashes[0], key: 'blorp' } ]
+        } },
+        { hash: hashes[2], body: 'BeEp BoOp\n', meta: {
             key: 'blorp',
             prev: [ { hash: hashes[0], key: 'blorp' } ]
         } },
@@ -33,12 +38,7 @@ test('populate out of order', function (t) {
                 { hash: hashes[1], key: 'blorp' },
                 { hash: hashes[2], key: 'blorp' }
             ]
-        } },
-        { hash: hashes[2], body: 'BeEp BoOp\n', meta: {
-            key: 'blorp',
-            prev: [ { hash: hashes[0], key: 'blorp' } ]
-        } },
-        { hash: hashes[0], body: 'beep boop\n', meta: { key: 'blorp' } },
+        } }
     ];
     t.plan(docs.length * 2);
     
@@ -54,7 +54,7 @@ test('populate out of order', function (t) {
     })();
 });
 
-test('out of order', function (t) {
+test('in order', function (t) {
     t.plan(10);
     
     var expected = {};
