@@ -87,11 +87,11 @@ test('third doc (conflict)', function (t) {
     expected.tails = [ { hash: hashes[0], key: 'blorp' } ];
     expected.list = [
         { hash: hashes[0], meta: { key: 'blorp' } },
-        { hash: hashes[2], meta: {
+        { hash: hashes[1], meta: {
             key: 'blorp',
             prev: [ { hash: hashes[0], key: 'blorp' } ]
         } },
-        { hash: hashes[1], meta: {
+        { hash: hashes[2], meta: {
             key: 'blorp',
             prev: [ { hash: hashes[0], key: 'blorp' } ]
         } }
@@ -124,13 +124,17 @@ test('third doc (conflict)', function (t) {
 });
 
 test('fourth doc (merge)', function (t) {
-    t.plan(10);
+    t.plan(12);
     
     var expected = {};
     expected.heads = [ { hash: hashes[3], key: 'blorp' } ];
     expected.tails = [ { hash: hashes[0], key: 'blorp' } ];
     expected.list = [
         { hash: hashes[0], meta: { key: 'blorp' } },
+        { hash: hashes[1], meta: {
+            key: 'blorp',
+            prev: [ { hash: hashes[0], key: 'blorp' } ]
+        } },
         { hash: hashes[2], meta: {
             key: 'blorp',
             prev: [ { hash: hashes[0], key: 'blorp' } ]
@@ -141,16 +145,12 @@ test('fourth doc (merge)', function (t) {
                 { hash: hashes[2], key: 'blorp' },
                 { hash: hashes[1], key: 'blorp' }
             ]
-        } },
-        { hash: hashes[1], meta: {
-            key: 'blorp',
-            prev: [ { hash: hashes[0], key: 'blorp' } ]
         } }
     ];
     expected.links = {};
     expected.links[hashes[0]] = [
-        { key: 'blorp', hash: hashes[2] },
-        { key: 'blorp', hash: hashes[1] }
+        { key: 'blorp', hash: hashes[1] },
+        { key: 'blorp', hash: hashes[2] }
     ];
     expected.links[hashes[1]] = [
         { key: 'blorp', hash: hashes[3] }
@@ -161,7 +161,10 @@ test('fourth doc (merge)', function (t) {
     
     var w = fdb.createWriteStream({
         key: 'blorp',
-        prev: [ { hash: hashes[0], key: 'blorp' } ]
+        prev: [
+            { hash: hashes[1], key: 'blorp' },
+            { hash: hashes[2], key: 'blorp' }
+        ]
     }, onfinish);
     function onfinish (err, key) {
         t.ifError(err);
@@ -192,17 +195,29 @@ function collect (cb) {
 
 function check (t, fdb, expected) {
     fdb.heads().pipe(collect(function (rows) {
-        t.deepEqual(rows, expected.heads, 'heads');
+        t.deepEqual(rows, sort(expected.heads), 'heads');
     }));
     fdb.tails().pipe(collect(function (rows) {
-        t.deepEqual(rows, expected.tails, 'tails');
+        t.deepEqual(rows, sort(expected.tails), 'tails');
     }));
     Object.keys(expected.links).forEach(function (hash) {
         fdb.getLinks(hash).pipe(collect(function (rows) {
-            t.deepEqual(rows, expected.links[hash], 'links');
+            t.deepEqual(rows, sort(expected.links[hash]), 'links');
         }));
     });
     fdb.list().pipe(collect(function (rows) {
-        t.deepEqual(rows, expected.list, 'list');
+        t.deepEqual(rows, sort(expected.list), 'list');
     }));
+}
+
+function sort (xs) {
+    return xs.sort(cmp);
+    function cmp (a, b) {
+        if (a.hash !== undefined && a.hash < b.hash) return -1;
+        if (a.hash !== undefined && a.hash > b.hash) return 1;
+        if (a.hash !== undefined && a.hash === b.hash) return 0;
+        if (a.key !== undefined && a.key < b.key) return -1;
+        if (a.key !== undefined && a.key > b.key) return 1;
+        if (a.key !== undefined && a.key === b.key) return 0;
+    }
 }
