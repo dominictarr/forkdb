@@ -25,8 +25,8 @@ test('first doc', function (t) {
     expected.heads = [ { hash: hashes[0], key: 'blorp' } ];
     expected.tails = [ { hash: hashes[0], key: 'blorp' } ];
     expected.list = [ { hash: hashes[0], meta: { key: 'blorp' } } ];
-    expected.links = [];
-    t.plan(5);
+    expected.links = {};
+    t.plan(4);
     
     var w = fdb.createWriteStream({ key: 'blorp' });
     w.on('finish', function () {
@@ -49,7 +49,8 @@ test('second doc', function (t) {
             prev: [ { hash: hashes[0], key: 'blorp' } ]
         } }
     ];
-    expected.links = [ { key: 'blorp', hash: hashes[1] } ];
+    expected.links = {};
+    expected.links[hashes[0]] = [ { key: 'blorp', hash: hashes[1] } ];
     t.plan(6);
     
     var w = fdb.createWriteStream({
@@ -86,7 +87,8 @@ test('third doc (conflict)', function (t) {
             prev: [ { hash: hashes[0], key: 'blorp' } ]
         } }
     ];
-    expected.links = [
+    expected.links = {};
+    expected.links[hashes[0]] = [
         { key: 'blorp', hash: hashes[2] },
         { key: 'blorp', hash: hashes[1] }
     ];
@@ -122,9 +124,11 @@ function check (t, fdb, expected) {
     fdb.tails().pipe(collect(function (rows) {
         t.deepEqual(rows, expected.tails, 'tails');
     }));
-    fdb.getLinks().pipe(collect(function (rows) {
-        t.deepEqual(rows, expected.links, 'links');
-    }));
+    Object.keys(expected.links).forEach(function (hash) {
+        fdb.getLinks(hash).pipe(collect(function (rows) {
+            t.deepEqual(rows, expected.links[hash], 'links');
+        }));
+    });
     fdb.list().pipe(collect(function (rows) {
         t.deepEqual(rows, expected.list, 'list');
     }));
