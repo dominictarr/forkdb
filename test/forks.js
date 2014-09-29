@@ -14,13 +14,15 @@ mkdirp.sync(tmpdir);
 var db = level(path.join(tmpdir, 'db'));
 var fdb = require('../')(db, { dir: path.join(tmpdir, 'blob') });
 
+var hashes = [
+    '9c0564511643d3bc841d769e27b1f4e669a75695f2a2f6206bca967f298390a0',
+    'fcbcbe4389433dd9652d279bb9044b8e570d7f033fab18189991354228a43e99'
+];
+
 test('first doc', function (t) {
-    var hashes = [
-        '9c0564511643d3bc841d769e27b1f4e669a75695f2a2f6206bca967f298390a0'
-    ];
     var expected = {};
     expected.heads = [ { hash: hashes[0], key: 'blorp' } ];
-    expected.tails = expected.heads.slice();
+    expected.tails = [ { hash: hashes[0], key: 'blorp' } ];
     expected.list = [ { hash: hashes[0], meta: { key: 'blorp' } } ];
     expected.links = [];
     t.plan(5);
@@ -35,6 +37,36 @@ test('first doc', function (t) {
     w.end('beep boop\n');
 });
 
+test('second doc', function (t) {
+    var expected = {};
+    expected.heads = [ { hash: hashes[1], key: 'blorp' } ];
+    expected.tails = [ { hash: hashes[0], key: 'blorp' } ];
+    expected.list = [
+        { hash: hashes[0], meta: { key: 'blorp' } },
+        { hash: hashes[1], meta: {
+            key: 'blorp',
+            prev: [ { hash: hashes[0], key: 'blorp' } ]
+        } }
+    ];
+    expected.links = [ { key: 'blorp', hash: hashes[1] } ];
+    t.plan(6);
+    
+    var w = fdb.createWriteStream({
+        key: 'blorp',
+        prev: [ { hash: hashes[0], key: 'blorp' } ]
+    });
+    w.on('finish', function () {
+        check(t, fdb, expected);
+        fdb.get(hashes[0]).pipe(concat(function (body) {
+            t.equal(body.toString('utf8'), 'beep boop\n');
+        }));
+        fdb.get(hashes[1]).pipe(concat(function (body) {
+            t.equal(body.toString('utf8'), 'BEEP BOOP\n');
+        }));
+    });
+    w.end('BEEP BOOP\n');
+});
+
 function collect (cb) {
     var rows = [];
     return through.obj(write, end);
@@ -44,15 +76,15 @@ function collect (cb) {
 
 function check (t, fdb, expected) {
     fdb.heads().pipe(collect(function (rows) {
-        t.deepEqual(rows, expected.heads);
+        t.deepEqual(rows, expected.heads, 'heads');
     }));
     fdb.tails().pipe(collect(function (rows) {
-        t.deepEqual(rows, expected.heads);
+        t.deepEqual(rows, expected.tails, 'tails');
     }));
     fdb.getLinks().pipe(collect(function (rows) {
-        t.deepEqual(rows, expected.links);
+        t.deepEqual(rows, expected.links, 'links');
     }));
     fdb.list().pipe(collect(function (rows) {
-        t.deepEqual(rows, expected.list);
+        t.deepEqual(rows, expected.list, 'list');
     }));
 }
