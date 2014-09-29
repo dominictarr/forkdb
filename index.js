@@ -48,16 +48,36 @@ ForkDB.prototype.createWriteStream = function (meta, cb) {
             rows.push({ type: 'put', key: [ 'tail', meta.key, w.key ], value: 0 });
         }
         
-        var pending = 0;
+        var pending = 1;
         prev.forEach(function (p) {
             pending ++;
-            self._updatePrev(p, w.key, meta, function (err, rows_) {
+            self._updatePrev(p, w.key, meta.key, function (err, rows_) {
                 if (err) w.emit('error', err);
                 rows.push.apply(rows, rows_);
                 if (-- pending === 0) commit();
             });
         });
-        rows.push({ type: 'put', key: [ 'head', meta.key, w.key ], value: 0 });
+        
+        self._getDangling(w.key, meta.key, function (err, dangling) {
+            if (err) return w.emit('error', err);
+            if (dangling.length === 0) {
+                rows.push({
+                    type: 'put',
+                    key: [ 'head', meta.key, w.key ],
+                    value: 0
+                });
+            }
+            dangling.forEach(function (d) {
+                rows.push({ type: 'del', key: d.key });
+                rows.push({ type: 'del', key: [ 'head', meta.key, w.key ] });
+                rows.push({
+                    type: 'put',
+                    key: [ 'link', w.key, d.key[3] ],
+                    value: meta.key
+                });
+            });
+            if (-- pending === 0) commit();
+        });
         rows.push({ type: 'put', key: [ 'meta', w.key ], value: ref });
         
         if (pending === 0) commit();
@@ -71,22 +91,42 @@ ForkDB.prototype.createWriteStream = function (meta, cb) {
     return w;
 };
 
-ForkDB.prototype._updatePrev = function (p, key, meta, cb) {
+ForkDB.prototype._getDangling = function (hash, key, cb) {
+    var dangling = [];
+    var opts = {
+        gt: [ 'dangle', key, hash, null ],
+        lt: [ 'dangle', key, hash, undefined ]
+    };
+    var s = this.db.createReadStream(opts);
+    s.on('error', cb);
+    s.pipe(through.obj(write, end));
+    
+    function write (row, enc, next) { dangling.push(row); next() }
+    function end () { cb(null, dangling) }
+};
+
+ForkDB.prototype._updatePrev = function (p, hash, key, cb) {
     var rows = [];
-    this.db.get([ 'head', p.key, p.hash ], function (err, value) {
+    this.db.get([ 'meta', p.hash ], function (err, value) {
         if (err && err.type === 'NotFoundError') {
-console.log('NOT FOUND:', p.key, p.hash); 
+            rows.push({
+                type: 'put',
+                key: [ 'dangle', p.key, p.hash, hash ],
+                value: 0
+            });
         }
-        rows.push({
-            type: 'del',
-            key: [ 'head', p.key, p.hash ],
-            value: 0
-        });
-        rows.push({
-            type: 'put',
-            key: [ 'link', p.hash, key ],
-            value: meta.key
-        });
+        else {
+            rows.push({
+                type: 'del',
+                key: [ 'head', p.key, p.hash ],
+                value: 0
+            });
+            rows.push({
+                type: 'put',
+                key: [ 'link', p.hash, hash ],
+                value: key
+            });
+        }
         cb(null, rows);
     });
 };
