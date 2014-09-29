@@ -30,13 +30,13 @@ test('first doc', function (t) {
     expected.list = [ { hash: hashes[0], meta: { key: 'blorp' } } ];
     expected.links = {};
     
-    var w = fdb.createWriteStream({ key: 'blorp' });
-    w.on('finish', function () {
+    var w = fdb.createWriteStream({ key: 'blorp' }, onfinish);
+    function onfinish () {
         check(t, fdb, expected);
         fdb.get(hashes[0]).pipe(concat(function (body) {
             t.equal(body.toString('utf8'), 'beep boop\n');
         }));
-    });
+    }
     w.end('beep boop\n');
 });
 
@@ -59,8 +59,8 @@ test('second doc', function (t) {
     var w = fdb.createWriteStream({
         key: 'blorp',
         prev: [ { hash: hashes[0], key: 'blorp' } ]
-    });
-    w.on('finish', function () {
+    }, onfinish);
+    function onfinish () {
         check(t, fdb, expected);
         fdb.get(hashes[0]).pipe(concat(function (body) {
             t.equal(body.toString('utf8'), 'beep boop\n');
@@ -68,7 +68,7 @@ test('second doc', function (t) {
         fdb.get(hashes[1]).pipe(concat(function (body) {
             t.equal(body.toString('utf8'), 'BEEP BOOP\n');
         }));
-    });
+    }
     w.end('BEEP BOOP\n');
 });
 
@@ -101,8 +101,8 @@ test('third doc (conflict)', function (t) {
     var w = fdb.createWriteStream({
         key: 'blorp',
         prev: [ { hash: hashes[0], key: 'blorp' } ]
-    });
-    w.on('finish', function () {
+    }, onfinish);
+    function onfinish () {
         check(t, fdb, expected);
         fdb.get(hashes[0]).pipe(concat(function (body) {
             t.equal(body.toString('utf8'), 'beep boop\n');
@@ -113,7 +113,7 @@ test('third doc (conflict)', function (t) {
         fdb.get(hashes[2]).pipe(concat(function (body) {
             t.equal(body.toString('utf8'), 'BeEp BoOp\n');
         }));
-    });
+    }
     w.end('BeEp BoOp\n');
 });
 
@@ -156,8 +156,8 @@ test('fourth doc (merge)', function (t) {
     var w = fdb.createWriteStream({
         key: 'blorp',
         prev: [ { hash: hashes[0], key: 'blorp' } ]
-    });
-    w.on('finish', function () {
+    }, onfinish);
+    function onfinish () {
         check(t, fdb, expected);
         fdb.get(hashes[0]).pipe(concat(function (body) {
             t.equal(body.toString('utf8'), 'beep boop\n');
@@ -171,7 +171,7 @@ test('fourth doc (merge)', function (t) {
         fdb.get(hashes[3]).pipe(concat(function (body) {
             t.equal(body.toString('utf8'), 'BEEPITY BOOPITY\n');
         }));
-    });
+    }
     w.end('BEEPITY BOOPITY\n');
 });
 
