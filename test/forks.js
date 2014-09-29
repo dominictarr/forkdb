@@ -215,9 +215,5 @@ function sort (xs) {
     function cmp (a, b) {
         if (a.hash !== undefined && a.hash < b.hash) return -1;
         if (a.hash !== undefined && a.hash > b.hash) return 1;
-        if (a.hash !== undefined && a.hash === b.hash) return 0;
-        if (a.key !== undefined && a.key < b.key) return -1;
-        if (a.key !== undefined && a.key > b.key) return 1;
-        if (a.key !== undefined && a.key === b.key) return 0;
     }
 }
