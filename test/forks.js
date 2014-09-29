@@ -142,8 +142,8 @@ test('fourth doc (merge)', function (t) {
         { hash: hashes[3], meta: {
             key: 'blorp',
             prev: [
-                { hash: hashes[2], key: 'blorp' },
-                { hash: hashes[1], key: 'blorp' }
+                { hash: hashes[1], key: 'blorp' },
+                { hash: hashes[2], key: 'blorp' }
             ]
         } }
     ];
