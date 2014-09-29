@@ -175,6 +175,9 @@ meta.prev = [
 ];
 ```
 
+`cb(err, key)` fires when an error occurs or when all the data has been written
+successfully to blob storage and leveldb under the key `key`.
+
 ## var r = fdb.heads(key)
 
 Return a readable object stream `r` that outputs an object with `key` and `hash`
