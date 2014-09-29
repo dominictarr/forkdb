@@ -10,6 +10,8 @@ immediate resolution, forkdb anticipates and welcomes conflicts.
 Interfaces built on forkdb should be honest about the underlying data model and
 embrace conflicts too.
 
+[![build status](https://secure.travis-ci.org/substack/forkdb.png)](http://travis-ci.org/substack/forkdb)
+
 # example
 
 Here we'll create a new document with the contents `beep boop` under the key
