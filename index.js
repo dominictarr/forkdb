@@ -47,27 +47,48 @@ ForkDB.prototype.createWriteStream = function (meta, cb) {
         if (prev.length === 0) {
             rows.push({ type: 'put', key: [ 'tail', meta.key, w.key ], value: 0 });
         }
+        
+        var pending = 0;
         prev.forEach(function (p) {
-            rows.push({
-                type: 'del',
-                key: [ 'head', p.key, p.hash ],
-                value: 0
-            });
-            rows.push({
-                type: 'put',
-                key: [ 'link', p.hash, w.key ],
-                value: meta.key
+            pending ++;
+            self._updatePrev(p, w.key, meta, function (err, rows_) {
+                if (err) w.emit('error', err);
+                rows.push.apply(rows, rows_);
+                if (-- pending === 0) commit();
             });
         });
         rows.push({ type: 'put', key: [ 'head', meta.key, w.key ], value: 0 });
         rows.push({ type: 'put', key: [ 'meta', w.key ], value: ref });
         
-        self.db.batch(rows, function (err) {
-            if (err) w.emit('error', err)
-            else if (cb) cb(null, w.key)
-        });
+        if (pending === 0) commit();
+        function commit () {
+            self.db.batch(rows, function (err) {
+                if (err) w.emit('error', err)
+                else if (cb) cb(null, w.key)
+            });
+        }
     });
     return w;
+};
+
+ForkDB.prototype._updatePrev = function (p, key, meta, cb) {
+    var rows = [];
+    this.db.get([ 'head', p.key, p.hash ], function (err, value) {
+        if (err && err.type === 'NotFoundError') {
+console.log('NOT FOUND:', p.key, p.hash); 
+        }
+        rows.push({
+            type: 'del',
+            key: [ 'head', p.key, p.hash ],
+            value: 0
+        });
+        rows.push({
+            type: 'put',
+            key: [ 'link', p.hash, key ],
+            value: meta.key
+        });
+        cb(null, rows);
+    });
 };
 
 ForkDB.prototype.heads = function (key) {
