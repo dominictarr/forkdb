@@ -158,6 +158,9 @@ Optionally set:
 * `opts.store` - content-addressable [abstract-blob-store](https://npmjs.org/package/abstract-blob-store) to use instead of
 [content-addressable-blob-store](https://npmjs.org/package/content-addressable-blob-store)
 
+To run both the command-line tool and the api over the same data simultaneously,
+use [level-party](https://npmjs.org/package/level-party) to create the `db`.
+
 ## var w = fdb.createWriteStream(meta, cb)
 
 Save the data written to the writable stream `w` into blob storage at
