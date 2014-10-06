@@ -28,13 +28,19 @@ function ForkDB (db, opts) {
     this._prebatch = opts.prebatch || function (x) { return x };
 }
 
-ForkDB.prototype.createWriteStream = function (meta, cb) {
+ForkDB.prototype.createWriteStream = function (meta, opts, cb) {
     var self = this;
     if (typeof meta === 'function') {
         cb = meta;
+        opts = {};
         meta = {};
     }
     if (!meta || typeof meta !== 'object') meta = {};
+    if (typeof opts === 'function') {
+        cb = opts;
+        opts = {};
+    }
+    if (!opts) opts = {};
     
     var w = this.store.createWriteStream();
     w.write(stringify(meta) + '\n');
@@ -82,7 +88,7 @@ ForkDB.prototype.createWriteStream = function (meta, cb) {
         rows.push({ type: 'put', key: [ 'meta', w.key ], value: ref });
         
         function commit () {
-            var rows_ = self._prebatch(rows);
+            var rows_ = (opts.prebatch || self._prebatch)(rows, w.key);
             if (!isarray(rows_)) {
                 var err = new Error('prebatch result not an array');
                 return w.emit('error', err);
