@@ -159,13 +159,13 @@ Optionally set:
 * `opts.dir` - directory to use for blob storage, default: './forkdb.blob'
 * `opts.store` - content-addressable [abstract-blob-store](https://npmjs.org/package/abstract-blob-store) to use instead of
 [content-addressable-blob-store](https://npmjs.org/package/content-addressable-blob-store)
-* `opts.prebatch(rows)` - function that gets run before db.batch() is called.
-* Should return the new array of rows to insert.
+* `opts.prebatch(rows, key)` - function that gets run before db.batch() is
+* called. * Should return the new array of rows to insert.
 
 To run both the command-line tool and the api over the same data simultaneously,
 use [level-party](https://npmjs.org/package/level-party) to create the `db`.
 
-## var w = fdb.createWriteStream(meta, cb)
+## var w = fdb.createWriteStream(meta, opts={}, cb)
 
 Save the data written to the writable stream `w` into blob storage at
 `meta.key`. To link back to previous documents, specify an array of objects with
@@ -181,6 +181,9 @@ meta.prev = [
 
 `cb(err, key)` fires when an error occurs or when all the data has been written
 successfully to blob storage and leveldb under the key `key`.
+
+Optionally, you can set an `opts.prebatch(row, key)` function that masks the
+prebatch function declared in the constructor.
 
 ## var r = fdb.heads(key)
 
