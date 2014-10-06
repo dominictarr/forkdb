@@ -14,7 +14,7 @@ var db = level(path.join(tmpdir, 'db'));
 var forkdb = require('../');
 var fdb = forkdb(db, { dir: path.join(tmpdir, 'blob') });
 
-var blob = Array(1000 * 20 + 1).join('A');
+var blob = Array(1000 * 200 + 1).join('A');
 
 test('blob', function (t) {
     t.plan(2);
