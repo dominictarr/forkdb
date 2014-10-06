@@ -25,6 +25,7 @@ function ForkDB (db, opts) {
         opts.store,
         blob({ dir: defined(opts.dir, './forkdb.blob') })
     );
+    this._prebatch = opts.prebatch || function (x) { return x };
 }
 
 ForkDB.prototype.createWriteStream = function (meta, cb) {
@@ -82,7 +83,12 @@ ForkDB.prototype.createWriteStream = function (meta, cb) {
         
         if (pending === 0) commit();
         function commit () {
-            self.db.batch(rows, function (err) {
+            var rows_ = self._prebatch(rows);
+            if (!isarray(rows_)) {
+                var err = new Error('prebatch result not an array');
+                return w.emit('error', err);
+            }
+            self.db.batch(rows_, function (err) {
                 if (err) w.emit('error', err)
                 else if (cb) cb(null, w.key)
             });
