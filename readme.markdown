@@ -159,6 +159,8 @@ Optionally set:
 * `opts.dir` - directory to use for blob storage, default: './forkdb.blob'
 * `opts.store` - content-addressable [abstract-blob-store](https://npmjs.org/package/abstract-blob-store) to use instead of
 [content-addressable-blob-store](https://npmjs.org/package/content-addressable-blob-store)
+* `opts.prebatch(rows)` - function that gets run before db.batch() is called.
+* Should return the new array of rows to insert.
 
 To run both the command-line tool and the api over the same data simultaneously,
 use [level-party](https://npmjs.org/package/level-party) to create the `db`.
