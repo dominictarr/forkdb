@@ -211,7 +211,10 @@ ForkDB.prototype.get = function (hash) {
 };
 
 ForkDB.prototype.getMeta = function (hash, cb) {
-    this.db.get([ 'meta', hash ], cb);
+    this.db.get([ 'meta', hash ], function (err, row) {
+        if (err && cb) cb(err)
+        else if (cb) cb(null, row.meta || {})
+    });
 };
 
 ForkDB.prototype.getLinks = function (hash) {
