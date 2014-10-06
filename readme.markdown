@@ -206,6 +206,13 @@ document in the database.
 
 Constrain the output stream by passing in `opts.gt`, `opts.lt`, or `opts.limit`.
 
+## var r = fdb.keys(opts)
+
+Return a readable object stream `r` that outputs a record for every key in the
+database.
+
+Constrain the output stream by passing in `opts.gt`, `opts.lt`, or `opts.limit`.
+
 ## var r = fdb.get(hash)
 
 Return a readable stream `r` with the blob content at `hash`.
