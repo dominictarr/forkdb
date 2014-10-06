@@ -81,7 +81,6 @@ ForkDB.prototype.createWriteStream = function (meta, cb) {
         });
         rows.push({ type: 'put', key: [ 'meta', w.key ], value: ref });
         
-        if (pending === 0) commit();
         function commit () {
             var rows_ = self._prebatch(rows);
             if (!isarray(rows_)) {
