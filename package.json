@@ -27,10 +27,12 @@
     "tape": "^3.0.0",
     "level": "~0.18.0",
     "osenv": "~0.1.0",
-    "concat-stream": "^1.4.6"
+    "concat-stream": "^1.4.6",
+    "covert": "^1.0.0"
   },
   "scripts": {
-    "test": "tape test/*.js"
+    "test": "tape test/*.js",
+    "coverage": "covert test/*.js"
   },
   "repository": {
     "type": "git",
