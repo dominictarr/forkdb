@@ -1,6 +1,6 @@
 {
   "name": "forkdb",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "forking content-addressed append-only historical key/value blob store over leveldb",
   "main": "index.js",
   "bin": {
