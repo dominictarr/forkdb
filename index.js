@@ -50,6 +50,7 @@ ForkDB.prototype.createWriteStream = function (meta, opts, cb) {
         var prev = getPrev(meta);
         var ref = { hash: w.key, meta: meta };
         var rows = [];
+        rows.push({ type: 'put', key: [ 'key', meta.key ], value: 0 });
         
         if (prev.length === 0) {
             rows.push({ type: 'put', key: [ 'tail', meta.key, w.key ], value: 0 });
@@ -187,6 +188,21 @@ ForkDB.prototype.list = function (opts) {
         this.db.createReadStream(opts),
         through.obj(function (row, enc, next) {
             this.push(row.value);
+            next();
+        })
+    ]));
+};
+
+ForkDB.prototype.keys = function (opts) {
+    if (!opts) opts = {};
+    var r = this.db.createReadStream({
+        gt: [ 'key', defined(opts.gt, null) ],
+        lt: [ 'key', defined(opts.lt, undefined) ],
+        limit: opts.limit
+    });
+    return readonly(combine([
+        r, through.obj(function (row, enc, next) {
+            this.push({ key: row.key[1] });
             next();
         })
     ]));
