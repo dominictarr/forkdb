@@ -26,11 +26,11 @@ var forkdb = require('../');
 test('prebatch', function (t) {
     fdb = forkdb(db, {
         dir: path.join(tmpdir, 'blob'),
-        prebatch: function (rows) {
-            return rows.concat({
+        prebatch: function (rows, key, cb) {
+            cb(null, rows.concat({
                 type: 'put', key: [ 'yo', 'skrill' ],
                 value: 'drop it hard'
-            });
+            }));
         }
     });
     

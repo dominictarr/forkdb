@@ -17,7 +17,7 @@ var forkdb = require('../');
 test('prebatch invalid', function (t) {
     var fdb = forkdb(db, {
         dir: path.join(tmpdir, 'blob'),
-        prebatch: function (rows) { return 'yo' }
+        prebatch: function (rows, key, cb) { cb(null, 'yo') }
     });
     
     t.plan(1);
