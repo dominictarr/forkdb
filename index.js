@@ -28,7 +28,7 @@ function ForkDB (db, opts) {
     this._prebatch = opts.prebatch || function (x, key, cb) { cb(null, x) };
 }
 
-ForkDB.prototype.push = function () {
+ForkDB.prototype.push = function (heads) {
     var input = through();
     var output = through();
     this.heads().pipe(through.obj(function (row, enc, next) {
@@ -39,6 +39,15 @@ ForkDB.prototype.push = function () {
 };
 
 ForkDB.prototype.pull = function () {
+    var input = split();
+    input.pipe(through(function (buf, enc, next) {
+        var line = buf.toString('utf8');
+        
+        next();
+    }));
+    var output = through();
+    
+    return duplexer(input, output);
 };
 
 ForkDB.prototype.createWriteStream = function (meta, opts, cb) {
