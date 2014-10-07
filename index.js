@@ -28,6 +28,19 @@ function ForkDB (db, opts) {
     this._prebatch = opts.prebatch || function (x, key, cb) { cb(null, x) };
 }
 
+ForkDB.prototype.push = function () {
+    var input = through();
+    var output = through();
+    this.heads().pipe(through.obj(function (row, enc, next) {
+        this.push(row.hash + '\n');
+        next();
+    })).pipe(output);
+    return duplexer(input, output);
+};
+
+ForkDB.prototype.pull = function () {
+};
+
 ForkDB.prototype.createWriteStream = function (meta, opts, cb) {
     var self = this;
     if (typeof meta === 'function') {
