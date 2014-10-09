@@ -91,6 +91,41 @@ $ forkdb history e3bd9d14b8c298e57dbbb10235306bd46d12ebaeccd067dc9cdf7ed25b10a96
  |- blorp :: 9c0564511643d3bc841d769e27b1f4e669a75695f2a2f6206bca967f298390a0
 ```
 
+## replication
+
+First, we'll populate two databases, `/tmp/a` and `/tmp/b` with some data:
+
+```
+$ echo beep boop | forkdb -d /tmp/a create --key=msg
+0673a2977261a9413b8a1abe8389b7c6ef327b319f60f814dece9617d43465c0
+$ echo RAWR | forkdb -d /tmp/a create --key=msg --prev.hash=0673a2977261a9413b8a1abe8389b7c6ef327b319f60f814dece9617d43465c0 --prev.key=msg
+d5c4f37b7dc7731f38a180edf714cd3ce1ce3e641fcf13b95ca470bf55a1833e
+$ echo mooo | forkdb -d /tmp/b create --key=msg --prev.hash=0673a2977261a9413b8a1abe8389b7c6ef327b319f60f814dece9617d43465c0 --prev.key=msg
+530ef19f9f7ed4d2a01bf2e3eba53da2cb1959eb0af5ef52adb10223826b0760
+```
+
+Now we can use [dupsh](https://npmjs.org/package/dupsh) to pipe replication
+endpoints for `/tmp/a` and `/tmp/b` together:
+
+```
+$ dupsh 'forkdb sync -d /tmp/a' 'forkdb sync -d /tmp/b'
+```
+
+dupsh is handy here because the `sync` command reads from stdin and writes to
+stdout. You can sync two forkdbs over the network with any duplex transport.
+
+For example, with netcat we can create a server on port 5000:
+
+```
+$ dupsh 'forkdb sync -d /tmp/a' 'nc -l 5000'
+```
+
+and then elsewhere we can connect to port 5000 for replication:
+
+```
+$ dupsh 'forkdb sync -d /tmp/b' 'nc localhost 5000'
+```
+
 ## api example
 
 Create a forkdb instance by passing in a leveldown or levelup handle and a path

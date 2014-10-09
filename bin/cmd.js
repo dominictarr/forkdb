@@ -94,6 +94,18 @@ else if (cmd === 'future') {
     if (argv._.length < 2) return showHelp(1);
     showFuture(fdb, argv._[1], function () { db.close() });
 }
+else if (cmd === 'sync') {
+    var rep = fdb.replicate({ mode: 'sync' }, function (errors, hashes) {
+        if (errors) {
+            errors.forEach(function (err) {
+                console.error(err);
+            });
+        }
+        db.close();
+        if (errors) process.exit(1);
+    });
+    process.stdin.pipe(rep).pipe(process.stdout);
+}
 else showHelp(1);
 
 function showHelp (code) {

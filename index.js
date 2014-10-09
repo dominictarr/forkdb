@@ -47,7 +47,7 @@ ForkDB.prototype.replicate = function (opts, cb) {
     self.list().pipe(through.obj(function (row, enc, next) {
         ex.provide(row.hash);
         next();
-    }), done);
+    }, done));
     
     ex.on('available', function (hashes) {
         pending += hashes.length;
