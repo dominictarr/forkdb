@@ -101,7 +101,7 @@ else if (cmd === 'sync') {
         }
         db.close();
         if (errors) process.exit(1)
-        else process.exit(0)
+        process.stdin.end();
     });
     process.stdin.pipe(rep).pipe(process.stdout);
 }
