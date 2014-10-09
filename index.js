@@ -39,9 +39,7 @@ ForkDB.prototype.replicate = function (opts, cb) {
     
     var self = this;
     var ex = exchange(function (hash) {
-        if (opts.mode === 'pull') {
-            return self.store.createReadStream(hash);
-        }
+        return self.store.createReadStream({ key: hash });
     });
     var pending = 1, errors = [], received = [];
     self.list().pipe(through.obj(function (row, enc, next) {
@@ -54,13 +52,23 @@ ForkDB.prototype.replicate = function (opts, cb) {
         ex.request(hashes);
     });
     ex.on('response', function (hash, stream) {
-        stream.pipe(dropFirst(function (err, meta) {
+        var r = stream.pipe(dropFirst(function (err, meta) {
             if (err) {
                 err.hash = hash;
                 ex.emit('clientError', err);
                 errors.push(err);
             }
-            else received.push(hash);
+            else {
+                received.push(hash);
+                pending ++;
+                r.pipe(self.createWriteStream(meta, function (err) {
+                    if (err) {
+                        err.hash = hash;
+                        errors.push(err);
+                    }
+                    done();
+                }));
+            }
             done();
         }));
     });
