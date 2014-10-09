@@ -97,12 +97,11 @@ else if (cmd === 'future') {
 else if (cmd === 'sync') {
     var rep = fdb.replicate({ mode: 'sync' }, function (errors, hashes) {
         if (errors) {
-            errors.forEach(function (err) {
-                console.error(err);
-            });
+            errors.forEach(function (err) { console.error(err) });
         }
         db.close();
-        if (errors) process.exit(1);
+        if (errors) process.exit(1)
+        else process.exit(0)
     });
     process.stdin.pipe(rep).pipe(process.stdout);
 }
