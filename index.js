@@ -10,6 +10,7 @@ var readonly = require('read-only-stream');
 var combine = require('stream-combiner2');
 var Readable = require('readable-stream').Readable;
 var has = require('has');
+var exchange = require('hash-exchange');
 
 module.exports = ForkDB;
 
@@ -28,26 +29,47 @@ function ForkDB (db, opts) {
     this._prebatch = opts.prebatch || function (x, key, cb) { cb(null, x) };
 }
 
-ForkDB.prototype.push = function (heads) {
-    var input = through();
-    var output = through();
-    this.heads().pipe(through.obj(function (row, enc, next) {
-        this.push(row.hash + '\n');
-        next();
-    })).pipe(output);
-    return duplexer(input, output);
-};
-
-ForkDB.prototype.pull = function () {
-    var input = split();
-    input.pipe(through(function (buf, enc, next) {
-        var line = buf.toString('utf8');
-        
-        next();
-    }));
-    var output = through();
+ForkDB.prototype.replicate = function (opts, cb) {
+    if (typeof opts === 'function') {
+        cb = opts;
+        opts = {};
+    }
+    if (!opts) opts = {};
+    var mode = defined(opts.mode, 'sync');
     
-    return duplexer(input, output);
+    var self = this;
+    var ex = exchange(function (hash) {
+        if (opts.mode === 'pull') {
+            return self.store.createReadStream(hash);
+        }
+    });
+    var pending = 1, errors = [], received = [];
+    self.list().pipe(through.obj(function (row, enc, next) {
+        ex.provide(row.hash);
+        next();
+    }), done);
+    
+    ex.on('available', function (hashes) {
+        pending += hashes.length;
+        ex.request(hashes);
+    });
+    ex.on('response', function (hash, stream) {
+        stream.pipe(dropFirst(function (err, meta) {
+            if (err) {
+                err.hash = hash;
+                ex.emit('clientError', err);
+                errors.push(err);
+            }
+            else received.push(hash);
+            done();
+        }));
+    });
+    return ex;
+    
+    function done () {
+        if (-- pending !== 0) return;
+        if (cb) cb(errors.length ? errors : null, received);
+    }
 };
 
 ForkDB.prototype.createWriteStream = function (meta, opts, cb) {
@@ -234,26 +256,8 @@ ForkDB.prototype.keys = function (opts) {
 };
 
 ForkDB.prototype.get = function (hash) {
-    var self = this;
-    var output = through();
-    
-    var r = self.store.createReadStream({ key: hash });
-    var line = false;
-    return readonly(r.pipe(through(write)));
-    
-    function write (buf, enc, next) {
-        if (line) {
-            this.push(buf);
-            return next();
-        }
-        for (var i = 0; i < buf.length; i++) {
-            if (buf[i] === 10) {
-                line = true;
-                this.push(buf.slice(i+1));
-                return next();
-            }
-        }
-    }
+    var r = this.store.createReadStream({ key: hash });
+    return readonly(r.pipe(dropFirst()));
 };
 
 ForkDB.prototype.getMeta = function (hash, cb) {
@@ -372,4 +376,31 @@ function getPrev (meta) {
     var prev = meta.prev;
     if (!isarray(prev)) prev = [ prev ];
     return prev.filter(Boolean);
+}
+
+function dropFirst (cb) {
+    var self = this;
+    var line = false;
+    var bufs = cb ? [] : null;
+    return through(function (buf, enc, next) {
+        if (line) {
+            this.push(buf);
+            return next();
+        }
+        for (var i = 0; i < buf.length; i++) {
+            if (buf[i] === 10) {
+                line = true;
+                if (bufs) bufs.push(buf.slice(0,i));
+                if (cb) {
+                    var b = Buffer.concat(bufs).toString('utf8');
+                    try { var meta = JSON.parse(b) }
+                    catch (err) { return cb(err) }
+                    cb(null, meta);
+                }
+                this.push(buf.slice(i+1));
+                return next();
+            }
+        }
+        if (bufs) bufs.push(buf);
+    });
 }

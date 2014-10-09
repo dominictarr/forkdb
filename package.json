@@ -12,6 +12,7 @@
     "defined": "~0.0.0",
     "duplexer2": "~0.0.2",
     "has": "~0.0.1",
+    "hash-exchange": "^1.0.0",
     "isarray": "~0.0.1",
     "json-stable-stringify": "^1.0.0",
     "level-party": "^1.0.1",
