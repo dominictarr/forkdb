@@ -42,6 +42,7 @@ ForkDB.prototype.replicate = function (opts, cb) {
     var seenAvail = false;
     
     var ex = exchange(function (hash) {
+        if (mode === 'pull') return null;
         pending ++;
         var r = self.store.createReadStream({ key: hash });
         r.once('end', done);
@@ -49,10 +50,13 @@ ForkDB.prototype.replicate = function (opts, cb) {
     });
     
     ex.on('available', function (hashes) {
-        pending += hashes.length;
         if (!seenAvail) done();
         seenAvail = true;
-        ex.request(hashes);
+        
+        if (mode !== 'push') {
+            pending += hashes.length;
+            ex.request(hashes);
+        }
     });
     ex.on('response', function (hash, stream) {
         var r = dropFirst(function (err, meta) {
