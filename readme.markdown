@@ -280,6 +280,27 @@ When the traversal comes to a branch, `r` ends and emits a `'branch'` event with
 a `b` object for each branch. The branch object `b` has the same behavior as `r`
 and operates recursively.
 
+## var d = fdb.replicate(opts={}, cb)
+
+Return a duplex stream `d` to replicate with another forkdb.
+Pipe the endpoints to each other, duplex stream style:
+
+```
+var d = fdb.replicate();
+d.pipe(stream).pipe(d);
+```
+
+for some full-duplex `stream`, for example from a tcp connection.
+
+Specify the replication strategy with `opts.mode`:
+
+* `opts.mode === 'sync'` - multi-master replication (default strategy)
+* `opts.mode === 'push'` - only send updates
+* `opts.mode === 'pull'` - only receive updates
+
+Note that if both endpoints try to push or both endpoints try to pull from each
+other, nothing will happen.
+
 # usage
 
 ```

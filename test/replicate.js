@@ -105,7 +105,7 @@ test('replicating', function (t) {
     });
     var rb = fdb.b.replicate(function (err, hs) {
         t.ifError(err);
-        t.deepEqual(hs, [ hashes[0] ]);
+        t.deepEqual(hs.sort(), [ hashes[0] ].sort());
     });
     ra.pipe(rb).pipe(ra);
 });
