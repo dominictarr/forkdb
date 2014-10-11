@@ -315,7 +315,6 @@ usage: forkdb COMMAND OPTIONS
 
     --dbdir    directory to use for db
 
-forkdb create '{"key":"...","prev":[...]}'
 forkdb create --key=KEY --prev [ --key=... --hash=... ] ...
 
   Create a new document with content from stdin under KEY.
