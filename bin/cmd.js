@@ -37,9 +37,11 @@ if (cmd === 'list') {
 }
 else if (cmd === 'create') {
     var meta = {};
-    if (argv._[1] !== undefined) meta = JSON.parse(argv._[1]);
+    if (argv.key) {
+        meta.key = argv.key;
+    }
+    else meta.key === argv._[1];
     
-    if (argv.key) meta.key = argv.key;
     if (argv.prev) {
         meta.prev = (isarray(argv.prev) ? argv.prev : [ argv.prev ])
             .map(function (p) {
