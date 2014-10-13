@@ -1,7 +1,7 @@
 {
   "name": "forkdb",
   "version": "4.0.0",
-  "description": "forking content-addressed append-only historical key/value blob store over leveldb",
+  "description": "forking content-addressed append-only historical key/value blob store over leveldb with multi-master replication",
   "main": "index.js",
   "bin": {
     "forkdb": "bin/cmd.js"
@@ -46,7 +46,9 @@
     "fork",
     "conflict",
     "blob",
-    "document"
+    "document",
+    "replication",
+    "multi-master"
   ],
   "author": {
     "name": "James Halliday",

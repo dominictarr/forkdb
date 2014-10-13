@@ -1,7 +1,7 @@
 # forkdb
 
 forking content-addressed append-only historical key/value blob store over
-leveldb
+leveldb with multi-master replication
 
 Conflicts are unavoidable, particularly when latency is high. Instead of hiding
 that fundamental fact or going into a conflict panic mode that demands an
