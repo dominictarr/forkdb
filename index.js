@@ -126,15 +126,16 @@ ForkDB.prototype.createWriteStream = function (meta, opts, cb) {
         prev.forEach(function (p) {
             pending ++;
             self._updatePrev(p, w.key, meta.key, function (err, rows_) {
-                if (err) w.emit('error', err);
+                if (err) return w.emit('error', err);
                 rows.push.apply(rows, rows_);
                 if (-- pending === 0) commit();
             });
         });
         
-        self._getDangling(w.key, meta.key, function (err, dangling) {
+        self._getDangling(w.key, meta.key, function (err, dangling, links) {
             if (err) return w.emit('error', err);
             if (dangling.length === 0) {
+console.error('CREATE HEAD', w.key, links.length); 
                 rows.push({
                     type: 'put',
                     key: [ 'head', meta.key, w.key ],
@@ -142,8 +143,10 @@ ForkDB.prototype.createWriteStream = function (meta, opts, cb) {
                 });
             }
             dangling.forEach(function (d) {
+console.error('DELETE DANGLE', d.key[3]); 
                 rows.push({ type: 'del', key: d.key });
                 rows.push({ type: 'del', key: [ 'head', meta.key, w.key ] });
+console.error('DELETE HEAD', meta.key, w.key); 
                 rows.push({
                     type: 'put',
                     key: [ 'link', w.key, d.key[3] ],
@@ -173,23 +176,31 @@ ForkDB.prototype.createWriteStream = function (meta, opts, cb) {
 };
 
 ForkDB.prototype._getDangling = function (hash, key, cb) {
-    var dangling = [];
-    var opts = {
+    var dangling = [], links = [], pending = 2;
+    var dopts = {
         gt: [ 'dangle', key, hash, null ],
         lt: [ 'dangle', key, hash, undefined ]
     };
-    var s = this.db.createReadStream(opts);
-    s.on('error', cb);
-    s.pipe(through.obj(write, end));
+    var lopts = {
+        gt: [ 'link', key, hash, null ],
+        lt: [ 'link', key, hash, undefined ]
+    };
+    var sd = this.db.createReadStream(dopts);
+    var sl = this.db.createReadStream(lopts);
+    sd.on('error', cb);
+    sd.pipe(through.obj(dwrite, end));
+    sl.pipe(through.obj(lwrite, end));
     
-    function write (row, enc, next) { dangling.push(row); next() }
-    function end () { cb(null, dangling) }
+    function dwrite (row, enc, next) { dangling.push(row); next() }
+    function lwrite (row, enc, next) { links.push(row); next() }
+    function end () { if (-- pending === 0) cb(null, dangling, links) }
 };
 
 ForkDB.prototype._updatePrev = function (p, hash, key, cb) {
     var rows = [];
     this.db.get([ 'meta', p.hash ], function (err, value) {
         if (err && err.type === 'NotFoundError') {
+console.error('!DANGLE', p.hash, hash); 
             rows.push({
                 type: 'put',
                 key: [ 'dangle', p.key, p.hash, hash ],
