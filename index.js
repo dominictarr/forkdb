@@ -6,6 +6,8 @@ var wrap = require('level-option-wrap');
 var has = require('has');
 var through = require('through2');
 var readonly = require('read-only-stream');
+var isarray = require('isarray');
+var copy = require('shallow-copy');
 
 module.exports = ForkDB;
 
@@ -56,7 +58,7 @@ ForkDB.prototype.createWriteStream = function (meta, opts, cb) {
         });
         
         var key = defined(meta.key, 'undefined');
-        self._mmm.put(key, meta, function (err) {
+        self._mmm.put(key, copy(meta), function (err) {
             if (err) return w.emit('error', err);
             else if (cb) cb(null, w.key)
         });
@@ -78,7 +80,7 @@ ForkDB.prototype.tails = function (key, opts, cb) {
         opts = {};
     }
     if (!opts) opts = {};
-    var r = this._fwdb.db.createReadStream(wrap(opts, {
+    var r = this._mmm.fwdb.db.createReadStream(wrap(opts, {
         gt: function (x) { return [ 'tail', key, null ] },
         lt: function (x) { return [ 'tail', key, undefined ] }
     }));
@@ -98,11 +100,11 @@ ForkDB.prototype.list = function (opts, cb) {
         opts = {};
     }
     if (!opts) opts = {};
-    var r = this._fwdb.db.createReadStream(wrap(opts, {
+    var r = this._mmm.fwdb.db.createReadStream(wrap(opts, {
         gt: function (x) { return [ 'meta', defined(x, null) ] },
         lt: function (x) { return [ 'meta', defined(x, undefined) ] }
     }));
-    var tr = through(function (row, enc, next) {
+    var tr = through.obj(function (row, enc, next) {
         this.push(row.value);
         next();
     });
@@ -118,28 +120,14 @@ ForkDB.prototype.get = function (hash) {
 };
 
 ForkDB.prototype.getMeta = function (hash, cb) {
-    this.db.get([ 'meta', hash ], function (err, meta) {
+    this._mmm.fwdb.db.get([ 'meta', hash ], function (err, meta) {
         if (err && cb) cb(err)
         else if (cb) cb(null, meta)
     });
 };
 
-ForkDB.prototype.getLinks = function (hash) {
-    var ghash = hash === undefined ? null : hash;
-    var opts = {
-        gt: [ 'link', ghash, null ],
-        lt: [ 'link', hash, undefined ]
-    };
-    return readonly(combine([
-        this.db.createReadStream(opts),
-        through.obj(function (row, enc, next) {
-            this.push({
-                key: row.value,
-                hash: row.key[2]
-            });
-            next();
-        })
-    ]));
+ForkDB.prototype.getLinks = function (hash, opts, cb) {
+    return this._mmm.fwdb.links(hash, opts, cb);
 };
 
 ForkDB.prototype.history = function (hash) {
