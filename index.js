@@ -1,97 +1,26 @@
-var sublevel = require('level-sublevel/bytewise');
-var bytewise = require('bytewise');
 var blob = require('content-addressable-blob-store');
 var defined = require('defined');
-var isarray = require('isarray');
-var through = require('through2');
-var duplexer = require('duplexer2');
 var stringify = require('json-stable-stringify');
-var readonly = require('read-only-stream');
-var combine = require('stream-combiner2');
-var Readable = require('readable-stream').Readable;
+var mmm = require('multi-master-merge');
+var wrap = require('level-option-wrap');
 var has = require('has');
-var exchange = require('hash-exchange');
+var through = require('through2');
+var readonly = require('read-only-stream');
 
 module.exports = ForkDB;
 
 function ForkDB (db, opts) {
     if (!(this instanceof ForkDB)) return new ForkDB(db, opts);
     if (!opts) opts = {};
-    
-    this.db = sublevel(db, {
-        keyEncoding: bytewise,
-        valueEncoding: 'json'
-    });
+    this._mmm = mmm(db);
     this.store = defined(
         opts.store,
         blob({ dir: defined(opts.dir, './forkdb.blob') })
     );
-    this._prebatch = opts.prebatch || function (x, key, cb) { cb(null, x) };
 }
 
 ForkDB.prototype.replicate = function (opts, cb) {
-    if (typeof opts === 'function') {
-        cb = opts;
-        opts = {};
-    }
-    if (!opts) opts = {};
-    var mode = defined(opts.mode, 'sync');
-    
-    var self = this;
-    var pending = 2, errors = [], received = [];
-    var seenAvail = false;
-    
-    var ex = exchange(function (hash) {
-        if (mode === 'pull') return null;
-        pending ++;
-        var r = self.store.createReadStream({ key: hash });
-        r.once('end', done);
-        return r;
-    });
-    
-    ex.on('available', function (hashes) {
-        if (!seenAvail) done();
-        seenAvail = true;
-        
-        if (mode !== 'push') {
-            pending += hashes.length;
-            ex.request(hashes);
-        }
-    });
-    ex.on('response', function (hash, stream) {
-        var r = dropFirst(function (err, meta) {
-            if (err) {
-                err.hash = hash;
-                ex.emit('clientError', err);
-                errors.push(err);
-            }
-            else {
-                received.push(hash);
-                pending ++;
-                r.pipe(self.createWriteStream(meta, function (err) {
-                    if (err) {
-                        err.hash = hash;
-                        errors.push(err);
-                    }
-                    done();
-                }));
-            }
-            done();
-        });
-        stream.pipe(r);
-    });
-    
-    self.list().pipe(through.obj(function (row, enc, next) {
-        ex.provide(row.hash);
-        next();
-    }, done));
-    
-    return ex;
-    
-    function done () {
-        if (-- pending !== 0) return;
-        if (cb) cb(errors.length ? errors : null, received);
-    }
+    // ...
 };
 
 ForkDB.prototype.createWriteStream = function (meta, opts, cb) {
@@ -114,178 +43,73 @@ ForkDB.prototype.createWriteStream = function (meta, opts, cb) {
     
     w.once('finish', function () {
         var prev = getPrev(meta);
-        var ref = { hash: w.key, meta: meta };
-        var rows = [];
-        rows.push({ type: 'put', key: [ 'key', meta.key ], value: 0 });
         
-        if (prev.length === 0) {
-            rows.push({ type: 'put', key: [ 'tail', meta.key, w.key ], value: 0 });
-        }
-        
-        var pending = 1;
-        prev.forEach(function (p) {
-            pending ++;
-            self._updatePrev(p, w.key, meta.key, function (err, rows_) {
-                if (err) return w.emit('error', err);
-                rows.push.apply(rows, rows_);
-                if (-- pending === 0) commit();
-            });
-        });
-        
-        self._getDangling(w.key, meta.key, function (err, dangling, links) {
-            if (err) return w.emit('error', err);
-            if (dangling.length === 0) {
-console.error('CREATE HEAD', w.key, links.length); 
+        self._mmm.fwdb.on('batch', function (rows) {
+            if (prev.length === 0) {
                 rows.push({
                     type: 'put',
-                    key: [ 'head', meta.key, w.key ],
+                    key: [ 'tail', meta.key, w.key ],
                     value: 0
                 });
             }
-            dangling.forEach(function (d) {
-console.error('DELETE DANGLE', d.key[3]); 
-                rows.push({ type: 'del', key: d.key });
-                rows.push({ type: 'del', key: [ 'head', meta.key, w.key ] });
-console.error('DELETE HEAD', meta.key, w.key); 
-                rows.push({
-                    type: 'put',
-                    key: [ 'link', w.key, d.key[3] ],
-                    value: meta.key
-                });
-            });
-            if (-- pending === 0) commit();
+            rows.push({ type: 'put', key: [ 'meta', w.key ], value: meta });
         });
-        rows.push({ type: 'put', key: [ 'meta', w.key ], value: ref });
         
-        function commit () {
-            (opts.prebatch || self._prebatch)(rows, w.key, done);
-        }
-        function done (err, rows_) {
+        var key = defined(meta.key, 'undefined');
+        self._mmm.put(key, meta, function (err) {
             if (err) return w.emit('error', err);
-            if (!isarray(rows_)) {
-                var err = new Error('prebatch result not an array');
-                return w.emit('error', err);
-            }
-            self.db.batch(rows_, function (err) {
-                if (err) w.emit('error', err)
-                else if (cb) cb(null, w.key)
-            });
-        }
+            else if (cb) cb(null, w.key)
+        });
     });
     return w;
 };
 
-ForkDB.prototype._getDangling = function (hash, key, cb) {
-    var dangling = [], links = [], pending = 2;
-    var dopts = {
-        gt: [ 'dangle', key, hash, null ],
-        lt: [ 'dangle', key, hash, undefined ]
-    };
-    var lopts = {
-        gt: [ 'link', key, hash, null ],
-        lt: [ 'link', key, hash, undefined ]
-    };
-    var sd = this.db.createReadStream(dopts);
-    var sl = this.db.createReadStream(lopts);
-    sd.on('error', cb);
-    sd.pipe(through.obj(dwrite, end));
-    sl.pipe(through.obj(lwrite, end));
-    
-    function dwrite (row, enc, next) { dangling.push(row); next() }
-    function lwrite (row, enc, next) { links.push(row); next() }
-    function end () { if (-- pending === 0) cb(null, dangling, links) }
+ForkDB.prototype.heads = function (key, opts, cb) {
+    return this._mmm.fwdb.heads(key, opts, cb);
 };
 
-ForkDB.prototype._updatePrev = function (p, hash, key, cb) {
-    var rows = [];
-    this.db.get([ 'meta', p.hash ], function (err, value) {
-        if (err && err.type === 'NotFoundError') {
-console.error('!DANGLE', p.hash, hash); 
-            rows.push({
-                type: 'put',
-                key: [ 'dangle', p.key, p.hash, hash ],
-                value: 0
-            });
-        }
-        else {
-            rows.push({
-                type: 'del',
-                key: [ 'head', p.key, p.hash ],
-                value: 0
-            });
-            rows.push({
-                type: 'put',
-                key: [ 'link', p.hash, hash ],
-                value: key
-            });
-        }
-        cb(null, rows);
-    });
+ForkDB.prototype.keys = function (opts, cb) {
+    return this._mmm.fwdb.keys(opts, cb);
 };
 
-ForkDB.prototype.heads = function (key) {
-    var opts = {
-        gt: [ 'head', defined(key, null), null ],
-        lt: [ 'head', key, undefined ]
-    };
-    return readonly(combine([
-        this.db.createReadStream(opts),
-        through.obj(function (row, enc, next) {
-            this.push({
-                key: row.key[1],
-                hash: row.key[2]
-            });
-            next();
-        })
-    ]));
-};
-
-ForkDB.prototype.tails = function (key) {
-    var opts = {
-        gt: [ 'tail', defined(key, null), null ],
-        lt: [ 'tail', key, undefined ]
-    };
-    return readonly(combine([
-        this.db.createReadStream(opts),
-        through.obj(function (row, enc, next) {
-            this.push({
-                key: row.key[1],
-                hash: row.key[2]
-            });
-            next();
-        })
-    ]));
-};
-
-ForkDB.prototype.list = function (opts) {
+ForkDB.prototype.tails = function (key, opts, cb) {
+    if (typeof opts === 'function') {
+        cb = opts;
+        opts = {};
+    }
     if (!opts) opts = {};
-    opts = {
-        gt: [ 'meta', defined(opts.gt, null) ],
-        lt: [ 'meta', defined(opts.lt, undefined) ],
-        limit: opts.limit
-    };
-    return readonly(combine([
-        this.db.createReadStream(opts),
-        through.obj(function (row, enc, next) {
-            this.push(row.value);
-            next();
-        })
-    ]));
+    var r = this._fwdb.db.createReadStream(wrap(opts, {
+        gt: function (x) { return [ 'tail', key, null ] },
+        lt: function (x) { return [ 'tail', key, undefined ] }
+    }));
+    var tr = through(function (row, enc, next) {
+        this.push({ key: row.key[1], hash: row.key[2] });
+        next();
+    });
+    r.on('error', function (err) { tr.emit('error', err) });
+    if (cb) tr.pipe(collect(cb));
+    if (cb) tr.on('error', cb);
+    return readonly(r.pipe(tr));
 };
 
-ForkDB.prototype.keys = function (opts) {
+ForkDB.prototype.list = function (opts, cb) {
+    if (typeof opts === 'function') {
+        cb = opts;
+        opts = {};
+    }
     if (!opts) opts = {};
-    var r = this.db.createReadStream({
-        gt: [ 'key', defined(opts.gt, null) ],
-        lt: [ 'key', defined(opts.lt, undefined) ],
-        limit: opts.limit
+    var r = this._fwdb.db.createReadStream(wrap(opts, {
+        gt: function (x) { return [ 'meta', defined(x, null) ] },
+        lt: function (x) { return [ 'meta', defined(x, undefined) ] }
+    }));
+    var tr = through(function (row, enc, next) {
+        this.push(row.value);
+        next();
     });
-    return readonly(combine([
-        r, through.obj(function (row, enc, next) {
-            this.push({ key: row.key[1] });
-            next();
-        })
-    ]));
+    r.on('error', function (err) { tr.emit('error', err) });
+    if (cb) tr.pipe(collect(cb));
+    if (cb) tr.on('error', cb);
+    return readonly(r.pipe(tr));
 };
 
 ForkDB.prototype.get = function (hash) {
@@ -294,9 +118,9 @@ ForkDB.prototype.get = function (hash) {
 };
 
 ForkDB.prototype.getMeta = function (hash, cb) {
-    this.db.get([ 'meta', hash ], function (err, row) {
+    this.db.get([ 'meta', hash ], function (err, meta) {
         if (err && cb) cb(err)
-        else if (cb) cb(null, row.meta || {})
+        else if (cb) cb(null, meta)
     });
 };
 
@@ -330,21 +154,21 @@ ForkDB.prototype.history = function (hash) {
     };
     return r;
     
-    function onget (err, row) {
+    function onget (err, meta) {
         if (err) return r.emit('error', err)
-        var prev = getPrev(row && row.meta);
+        var prev = getPrev(meta);
         
         if (prev.length === 0) {
             next = null;
-            r.push(row);
+            r.push(meta);
         }
         else if (prev.length === 1) {
             next = prev[0].hash;
-            r.push(row);
+            r.push(meta);
         }
         else {
             next = null;
-            r.push(row);
+            r.push(meta);
             prev.forEach(function (p) {
                 r.emit('branch', self.history(p.hash));
             });
@@ -355,17 +179,17 @@ ForkDB.prototype.history = function (hash) {
 ForkDB.prototype.future = function (hash) {
     var self = this;
     var output = through.obj();
-    self.db.get([ 'meta', hash ], function (err, row) {
-        var r = future_(row);
+    self.db.get([ 'meta', hash ], function (err, meta) {
+        var r = future_(meta);
         r.on('branch', function (b) { ro.emit('branch', b) });
         r.pipe(output);
     });
     var ro = readonly(output);
     return ro;
     
-    function future_ (row) {
+    function future_ (meta) {
         var r = new Readable({ objectMode: true });
-        var next = row;
+        var next = meta;
         
         r._read = function () {
             if (!next) return r.push(null);
@@ -436,4 +260,11 @@ function dropFirst (cb) {
         }
         if (bufs) bufs.push(buf);
     });
+}
+
+function collect (cb) {
+    var rows = [];
+    return through.obj(write, end);
+    function write (row, enc, next) { rows.push(row); next() }
+    function end () { cb(null, rows) }
 }
