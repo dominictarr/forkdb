@@ -244,7 +244,10 @@ function getPrev (meta) {
     if (!has(meta, 'prev')) return [];
     var prev = meta.prev;
     if (!isarray(prev)) prev = [ prev ];
-    return prev.filter(Boolean);
+    return prev.map(function (p) {
+        if (p && typeof p === 'object' && p.hash) return p.hash;
+        return p;
+    }).filter(Boolean);
 }
 
 function dropFirst (cb) {
