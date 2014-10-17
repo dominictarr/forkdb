@@ -19,6 +19,7 @@ function ForkDB (db, opts) {
     if (!opts) opts = {};
     var sub = sublevel(db);
     this._fwdb = fwdb(db); // fwdb doesn't work with sublevels :/
+    this.db = db;
     this._log = scuttleup(sub.sublevel('seq'));
     this.store = defined(
         opts.store,
@@ -43,7 +44,10 @@ ForkDB.prototype.createWriteStream = function (meta, opts, cb) {
         opts = {};
     }
     if (!opts) opts = {};
-    
+    var prebatch = defined(
+        opts.prebatch,
+        function (rows, fn) { fn(null, rows) }
+    );
     var w = this.store.createWriteStream();
     w.write(stringify(meta) + '\n');
     if (cb) w.on('error', cb);
@@ -64,12 +68,20 @@ ForkDB.prototype.createWriteStream = function (meta, opts, cb) {
         });
         
         var key = defined(meta.key, 'undefined');
-        self._fwdb.create(doc, function (err) {
+        self._fwdb._create(doc, function (err, rows) {
             if (err) return w.emit('error', err);
-            else if (cb) cb(null, w.key)
+            prebatch(rows, commit);
         });
     });
     return w;
+    
+    function commit (err, rows) {
+        if (err) w.emit('error', err);
+        else if (!isarray(rows)) {
+            w.emit('error', new Error('prebatch result is not an array'));
+        }
+        else if (cb) cb(null, w.key);
+    }
 };
 
 ForkDB.prototype.heads = function (key, opts, cb) {
@@ -189,7 +201,7 @@ ForkDB.prototype.future = function (hash) {
             if (-- pending === 0) done();
         });
         
-        self.getLinks(next, function (err, crows) {
+        self.links(next, function (err, crows) {
             if (err) return r.emit('error', err);
             ref.rows = crows;
             if (-- pending === 0) done();
