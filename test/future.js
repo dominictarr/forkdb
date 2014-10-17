@@ -19,34 +19,35 @@ var hashes = [
     'c3122c908bf03bb8b36eaf3b46e27437e23827e6a341439974d5d38fb22fbdfc',
     'e3bd9d14b8c298e57dbbb10235306bd46d12ebaeccd067dc9cdf7ed25b10a96d'
 ];
+var docs = [
+    { hash: hashes[1], body: 'BEEP BOOP\n', meta: {
+        key: 'blorp',
+        prev: [ { hash: hashes[0], key: 'blorp' } ]
+    } },
+    { hash: hashes[3], body: 'BEEPITY BOOPITY\n', meta: {
+        key: 'blorp',
+        prev: [
+            { hash: hashes[1], key: 'blorp' },
+            { hash: hashes[2], key: 'blorp' }
+        ]
+    } },
+    { hash: hashes[2], body: 'BeEp BoOp\n', meta: {
+        key: 'blorp',
+        prev: [ { hash: hashes[0], key: 'blorp' } ]
+    } },
+    { hash: hashes[0], body: 'beep boop\n', meta: { key: 'blorp' } },
+];
 
 var forkdb = require('../');
 var fdb = forkdb(db, { dir: path.join(tmpdir, 'blob') });
 
 test('populate future', function (t) {
-    var docs = [
-        { hash: hashes[1], body: 'BEEP BOOP\n', meta: {
-            key: 'blorp',
-            prev: [ { hash: hashes[0], key: 'blorp' } ]
-        } },
-        { hash: hashes[3], body: 'BEEPITY BOOPITY\n', meta: {
-            key: 'blorp',
-            prev: [
-                { hash: hashes[1], key: 'blorp' },
-                { hash: hashes[2], key: 'blorp' }
-            ]
-        } },
-        { hash: hashes[2], body: 'BeEp BoOp\n', meta: {
-            key: 'blorp',
-            prev: [ { hash: hashes[0], key: 'blorp' } ]
-        } },
-        { hash: hashes[0], body: 'beep boop\n', meta: { key: 'blorp' } },
-    ];
     t.plan(docs.length * 2);
+    var docs_ = docs.slice();
     
     (function next () {
-        if (docs.length === 0) return;
-        var doc = docs.shift();
+        if (docs_.length === 0) return;
+        var doc = docs_.shift();
         var w = fdb.createWriteStream(doc.meta, function (err, hash) {
             t.ifError(err);
             t.equal(doc.hash, hash);
@@ -57,7 +58,7 @@ test('populate future', function (t) {
 });
 
 test('future', function (t) {
-    t.plan(6);
+    t.plan(9);
     
     var h0 = fdb.future(hashes[0]);
     h0.pipe(collect(function (rows) {
@@ -76,12 +77,15 @@ test('future', function (t) {
     
     fdb.future(hashes[1]).pipe(collect(function (rows) {
         t.deepEqual(mhashes(rows), [ hashes[1], hashes[3] ], 'future 1');
+        t.deepEqual(mmetas(rows), [ docs[0].meta, docs[1].meta ]);
     }));
     fdb.future(hashes[2]).pipe(collect(function (rows) {
         t.deepEqual(mhashes(rows), [ hashes[2], hashes[3] ], 'future 2');
+        t.deepEqual(mmetas(rows), [ docs[2].meta, docs[1].meta ]);
     }));
     fdb.future(hashes[3]).pipe(collect(function (rows) {
         t.deepEqual(mhashes(rows), [ hashes[3] ], 'future 3');
+        t.deepEqual(mmetas(rows), [ docs[1].meta ]);
     }));
 });
 
@@ -94,4 +98,8 @@ function collect (cb) {
 
 function mhashes (rows) {
     return rows.map(function (row) { return row.hash });
+}
+
+function mmetas (rows) {
+    return rows.map(function (row) { return row.meta });
 }
