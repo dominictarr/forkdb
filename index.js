@@ -132,7 +132,7 @@ ForkDB.prototype.getMeta = function (hash, cb) {
     });
 };
 
-ForkDB.prototype.getLinks = function (hash, opts, cb) {
+ForkDB.prototype.links = function (hash, opts, cb) {
     return this._fwdb.links(hash, opts, cb);
 };
 

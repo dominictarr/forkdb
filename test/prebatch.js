@@ -137,7 +137,7 @@ function check (t, fdb, expected) {
         t.deepEqual(rows, sort(expected.tails), 'tails');
     }));
     Object.keys(expected.links).forEach(function (hash) {
-        fdb.getLinks(hash).pipe(collect(function (rows) {
+        fdb.links(hash).pipe(collect(function (rows) {
             t.deepEqual(rows, sort(expected.links[hash]), 'links');
         }));
     });
