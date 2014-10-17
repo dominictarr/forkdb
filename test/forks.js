@@ -194,10 +194,10 @@ function collect (cb) {
 }
 
 function check (t, fdb, expected) {
-    fdb.heads().pipe(collect(function (rows) {
+    fdb.heads('blorp').pipe(collect(function (rows) {
         t.deepEqual(rows, sort(expected.heads), 'heads');
     }));
-    fdb.tails().pipe(collect(function (rows) {
+    fdb.tails('blorp').pipe(collect(function (rows) {
         t.deepEqual(rows, sort(expected.tails), 'tails');
     }));
     Object.keys(expected.links).forEach(function (hash) {

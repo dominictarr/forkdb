@@ -1,20 +1,24 @@
 var blob = require('content-addressable-blob-store');
 var defined = require('defined');
+var sublevel = require('level-sublevel');
 var stringify = require('json-stable-stringify');
-var mmm = require('multi-master-merge');
 var wrap = require('level-option-wrap');
 var has = require('has');
 var through = require('through2');
 var readonly = require('read-only-stream');
 var isarray = require('isarray');
 var copy = require('shallow-copy');
+var scuttleup = require('scuttleup');
+var fwdb = require('fwdb');
 
 module.exports = ForkDB;
 
 function ForkDB (db, opts) {
     if (!(this instanceof ForkDB)) return new ForkDB(db, opts);
     if (!opts) opts = {};
-    this._mmm = mmm(db);
+    var sub = sublevel(db);
+    this._fwdb = fwdb(db); // fwdb doesn't work with sublevels :/
+    this._log = scuttleup(sub.sublevel('seq'));
     this.store = defined(
         opts.store,
         blob({ dir: defined(opts.dir, './forkdb.blob') })
@@ -46,7 +50,7 @@ ForkDB.prototype.createWriteStream = function (meta, opts, cb) {
     w.once('finish', function () {
         var prev = getPrev(meta);
         
-        self._mmm.fwdb.on('batch', function (rows) {
+        self._fwdb.on('batch', function (rows) {
             if (prev.length === 0) {
                 rows.push({
                     type: 'put',
@@ -58,7 +62,7 @@ ForkDB.prototype.createWriteStream = function (meta, opts, cb) {
         });
         
         var key = defined(meta.key, 'undefined');
-        self._mmm.put(key, copy(meta), function (err) {
+        self._fwdb.create(meta, function (err) {
             if (err) return w.emit('error', err);
             else if (cb) cb(null, w.key)
         });
@@ -67,11 +71,11 @@ ForkDB.prototype.createWriteStream = function (meta, opts, cb) {
 };
 
 ForkDB.prototype.heads = function (key, opts, cb) {
-    return this._mmm.fwdb.heads(key, opts, cb);
+    return this._fwdb.heads(key, opts, cb);
 };
 
 ForkDB.prototype.keys = function (opts, cb) {
-    return this._mmm.fwdb.keys(opts, cb);
+    return this._fwdb.keys(opts, cb);
 };
 
 ForkDB.prototype.tails = function (key, opts, cb) {
@@ -80,11 +84,11 @@ ForkDB.prototype.tails = function (key, opts, cb) {
         opts = {};
     }
     if (!opts) opts = {};
-    var r = this._mmm.fwdb.db.createReadStream(wrap(opts, {
+    var r = this._fwdb.db.createReadStream(wrap(opts, {
         gt: function (x) { return [ 'tail', key, null ] },
         lt: function (x) { return [ 'tail', key, undefined ] }
     }));
-    var tr = through(function (row, enc, next) {
+    var tr = through.obj(function (row, enc, next) {
         this.push({ key: row.key[1], hash: row.key[2] });
         next();
     });
@@ -100,7 +104,7 @@ ForkDB.prototype.list = function (opts, cb) {
         opts = {};
     }
     if (!opts) opts = {};
-    var r = this._mmm.fwdb.db.createReadStream(wrap(opts, {
+    var r = this._fwdb.db.createReadStream(wrap(opts, {
         gt: function (x) { return [ 'meta', defined(x, null) ] },
         lt: function (x) { return [ 'meta', defined(x, undefined) ] }
     }));
@@ -127,7 +131,7 @@ ForkDB.prototype.getMeta = function (hash, cb) {
 };
 
 ForkDB.prototype.getLinks = function (hash, opts, cb) {
-    return this._mmm.fwdb.links(hash, opts, cb);
+    return this._fwdb.links(hash, opts, cb);
 };
 
 ForkDB.prototype.history = function (hash) {
