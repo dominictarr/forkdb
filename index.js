@@ -182,24 +182,37 @@ ForkDB.prototype.future = function (hash) {
     r._read = function () {
         if (!next) return r.push(null);
         
+        var pending = 2, ref = {};
+        self.getMeta(next, function (err, meta) {
+            if (err) return r.emit('error', err);
+            ref.meta = meta;
+            if (-- pending === 0) done();
+        });
+        
         self.getLinks(next, function (err, crows) {
+            if (err) return r.emit('error', err);
+            ref.rows = crows;
+            if (-- pending === 0) done();
+        });
+        
+        function done () {
             var prev = next;
-            if (crows.length === 0) {
+            if (ref.rows.length === 0) {
                 next = null;
-                r.push({ hash: prev });
+                r.push({ hash: prev, meta: ref.meta });
             }
-            else if (crows.length === 1) {
-                next = hashOf(crows[0]);
-                r.push({ hash: prev });
+            else if (ref.rows.length === 1) {
+                next = hashOf(ref.rows[0]);
+                r.push({ hash: prev, meta: ref.meta });
             }
             else {
                 next = null;
-                r.push({ hash: prev });
-                crows.forEach(function (crow) {
+                r.push({ hash: prev, meta: ref.meta });
+                ref.rows.forEach(function (crow) {
                     r.emit('branch', self.future(hashOf(crow)));
                 });
             }
-        });
+        }
     };
     return r;
 };
