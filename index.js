@@ -73,26 +73,7 @@ ForkDB.prototype.createWriteStream = function (meta, opts, cb) {
 };
 
 ForkDB.prototype.heads = function (key, opts, cb) {
-    var self = this;
-    if (typeof opts === 'function') {
-        cb = opts;
-        opts = {};
-    }
-    var r = this._fwdb.heads(key, opts);
-    var m = through.obj(write);
-    m.on('error', function (err) { r.emit('error', err) });
-    if (cb) m.on('error', cb);
-    if (cb) m.pipe(collect(cb));
-    return readonly(r.pipe(m));
-    
-    function write (row, enc, next) {
-        self.getMeta(row.hash, function (err, meta) {
-            if (err) return m.emit('error', err);
-            row.key = meta.key;
-            m.push(row);
-            next();
-        });
-    }
+    return this._fwdb.heads(key, opts, cb);
 };
 
 ForkDB.prototype.keys = function (opts, cb) {
@@ -110,7 +91,7 @@ ForkDB.prototype.tails = function (key, opts, cb) {
         lt: function (x) { return [ 'tail', key, undefined ] }
     }));
     var tr = through.obj(function (row, enc, next) {
-        this.push({ key: row.key[1], hash: row.key[2] });
+        this.push({ hash: row.key[2] });
         next();
     });
     r.on('error', function (err) { tr.emit('error', err) });
@@ -162,7 +143,7 @@ ForkDB.prototype.history = function (hash) {
     
     r._read = function () {
         if (!next) return r.push(null);
-        self._fwdb.db.get([ 'meta', next ], onget);
+        self.getMeta(next, onget);
     };
     return r;
     
@@ -176,43 +157,43 @@ ForkDB.prototype.history = function (hash) {
             r.push({ hash: hash, meta: meta });
         }
         else if (prev.length === 1) {
-            next = prev[0] && typeof prev[0] === 'object'
-                ? prev[0].hash
-                : prev[0]
-            ;
+            next = hashOf(prev[0]);
             r.push({ hash: hash, meta: meta });
         }
         else {
             next = null;
             r.push({ hash: hash, meta: meta });
             prev.forEach(function (p) {
-                var ph = p && typeof p === 'object' ? p.hash : p;
-                r.emit('branch', self.history(ph));
+                r.emit('branch', self.history(hashOf(p)));
             });
         }
     }
 };
 
+function hashOf (p) {
+    return p && typeof p === 'object' ? p.hash : p;
+}
+
 ForkDB.prototype.future = function (hash) {
     var self = this;
     var output = through.obj();
-    self.db.get([ 'meta', hash ], function (err, meta) {
-        var r = future_(meta);
+    self.getMeta(hash, function (err, meta) {
+        var r = future_(hash, meta);
         r.on('branch', function (b) { ro.emit('branch', b) });
         r.pipe(output);
     });
     var ro = readonly(output);
     return ro;
     
-    function future_ (meta) {
+    function future_ (hash, meta) {
         var r = new Readable({ objectMode: true });
-        var next = meta;
+        var next = hash;
         
         r._read = function () {
             if (!next) return r.push(null);
             
             var crows = [];
-            self.getLinks(next.hash).pipe(through.obj(write, end));
+            self.getLinks(next).pipe(through.obj(write, end));
             
             function write (crow, enc, next) {
                 crows.push(crow);
@@ -223,19 +204,19 @@ ForkDB.prototype.future = function (hash) {
                 var prev = next;
                 if (crows.length === 0) {
                     next = null;
-                    r.push(prev);
+                    r.push({ hash: prev });
                 }
                 else if (crows.length === 1) {
-                    self.db.get([ 'meta', crows[0].hash ], function (err, v) {
-                        next = v;
-                        r.push(prev);
+                    self.getMeta(hashOf(crows[0]), function (err, v) {
+                        next = hashOf(v);
+                        r.push({ hash: prev });
                     });
                 }
                 else {
                     next = null;
-                    r.push(prev);
+                    r.push({ hash: prev });
                     crows.forEach(function (crow) {
-                        r.emit('branch', self.future(crow.hash));
+                        r.emit('branch', self.future(hashOf(crow)));
                     });
                 }
             }

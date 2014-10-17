@@ -58,8 +58,8 @@ test('in order', function (t) {
     t.plan(10);
     
     var expected = {};
-    expected.heads = [ { hash: hashes[3], key: 'blorp' } ];
-    expected.tails = [ { hash: hashes[0], key: 'blorp' } ];
+    expected.heads = [ { hash: hashes[3] } ];
+    expected.tails = [ { hash: hashes[0] } ];
     expected.list = [
         { hash: hashes[0], meta: { key: 'blorp' } },
         { hash: hashes[1], meta: {
@@ -113,10 +113,10 @@ function collect (cb) {
 }
 
 function check (t, fdb, expected) {
-    fdb.heads().pipe(collect(function (rows) {
+    fdb.heads('blorp').pipe(collect(function (rows) {
         t.deepEqual(rows, sort(expected.heads), 'heads');
     }));
-    fdb.tails().pipe(collect(function (rows) {
+    fdb.tails('blorp').pipe(collect(function (rows) {
         t.deepEqual(rows, sort(expected.tails), 'tails');
     }));
     Object.keys(expected.links).forEach(function (hash) {
