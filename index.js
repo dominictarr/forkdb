@@ -49,6 +49,7 @@ ForkDB.prototype.createWriteStream = function (meta, opts, cb) {
     
     w.once('finish', function () {
         var prev = getPrev(meta);
+        var doc = { hash: w.key, key: meta.key, prev: prev };
         
         self._fwdb.on('batch', function (rows) {
             if (prev.length === 0) {
@@ -62,7 +63,7 @@ ForkDB.prototype.createWriteStream = function (meta, opts, cb) {
         });
         
         var key = defined(meta.key, 'undefined');
-        self._fwdb.create(meta, function (err) {
+        self._fwdb.create(doc, function (err) {
             if (err) return w.emit('error', err);
             else if (cb) cb(null, w.key)
         });
@@ -71,7 +72,26 @@ ForkDB.prototype.createWriteStream = function (meta, opts, cb) {
 };
 
 ForkDB.prototype.heads = function (key, opts, cb) {
-    return this._fwdb.heads(key, opts, cb);
+    var self = this;
+    if (typeof opts === 'function') {
+        cb = opts;
+        opts = {};
+    }
+    var r = this._fwdb.heads(key, opts);
+    var m = through.obj(write);
+    m.on('error', function (err) { r.emit('error', err) });
+    if (cb) m.on('error', cb);
+    if (cb) m.pipe(collect(cb));
+    return readonly(r.pipe(m));
+    
+    function write (row, enc, next) {
+        self.getMeta(row.hash, function (err, meta) {
+            if (err) return m.emit('error', err);
+            row.key = meta.key;
+            m.push(row);
+            next();
+        });
+    }
 };
 
 ForkDB.prototype.keys = function (opts, cb) {
@@ -109,7 +129,7 @@ ForkDB.prototype.list = function (opts, cb) {
         lt: function (x) { return [ 'meta', defined(x, undefined) ] }
     }));
     var tr = through.obj(function (row, enc, next) {
-        this.push(row.value);
+        this.push({ meta: row.value, hash: row.key[1] });
         next();
     });
     r.on('error', function (err) { tr.emit('error', err) });
@@ -124,7 +144,7 @@ ForkDB.prototype.get = function (hash) {
 };
 
 ForkDB.prototype.getMeta = function (hash, cb) {
-    this._mmm.fwdb.db.get([ 'meta', hash ], function (err, meta) {
+    this._fwdb.db.get([ 'meta', hash ], function (err, meta) {
         if (err && cb) cb(err)
         else if (cb) cb(null, meta)
     });
