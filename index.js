@@ -176,53 +176,32 @@ function hashOf (p) {
 
 ForkDB.prototype.future = function (hash) {
     var self = this;
-    var output = through.obj();
-    self.getMeta(hash, function (err, meta) {
-        var r = future_(hash, meta);
-        r.on('branch', function (b) { ro.emit('branch', b) });
-        r.pipe(output);
-    });
-    var ro = readonly(output);
-    return ro;
+    var r = new Readable({ objectMode: true });
+    var next = hash;
     
-    function future_ (hash, meta) {
-        var r = new Readable({ objectMode: true });
-        var next = hash;
+    r._read = function () {
+        if (!next) return r.push(null);
         
-        r._read = function () {
-            if (!next) return r.push(null);
-            
-            var crows = [];
-            self.getLinks(next).pipe(through.obj(write, end));
-            
-            function write (crow, enc, next) {
-                crows.push(crow);
-                next();
+        self.getLinks(next, function (err, crows) {
+            var prev = next;
+            if (crows.length === 0) {
+                next = null;
+                r.push({ hash: prev });
             }
-            
-            function end () {
-                var prev = next;
-                if (crows.length === 0) {
-                    next = null;
-                    r.push({ hash: prev });
-                }
-                else if (crows.length === 1) {
-                    self.getMeta(hashOf(crows[0]), function (err, v) {
-                        next = hashOf(v);
-                        r.push({ hash: prev });
-                    });
-                }
-                else {
-                    next = null;
-                    r.push({ hash: prev });
-                    crows.forEach(function (crow) {
-                        r.emit('branch', self.future(hashOf(crow)));
-                    });
-                }
+            else if (crows.length === 1) {
+                next = hashOf(crows[0]);
+                r.push({ hash: prev });
             }
-        };
-        return r;
-    }
+            else {
+                next = null;
+                r.push({ hash: prev });
+                crows.forEach(function (crow) {
+                    r.emit('branch', self.future(hashOf(crow)));
+                });
+            }
+        });
+    };
+    return r;
 };
 
 function getPrev (meta) {
