@@ -16,27 +16,24 @@ var fdb = require('../')(db, { dir: path.join(tmpdir, 'blob') });
 
 var hashes = [
     '9c0564511643d3bc841d769e27b1f4e669a75695f2a2f6206bca967f298390a0',
-    'fcbcbe4389433dd9652d279bb9044b8e570d7f033fab18189991354228a43e99',
-    'c3122c908bf03bb8b36eaf3b46e27437e23827e6a341439974d5d38fb22fbdfc',
-    'e3bd9d14b8c298e57dbbb10235306bd46d12ebaeccd067dc9cdf7ed25b10a96d'
+    'f5ff29843ef0658e2a1e14ed31198807ce8302936116545928756844be45fe41',
+    '6c0c881fad7adb3fec52b75ab0de8670391ceb8847c8e4c3a2dce9a56244b328',
+    '96b51029baa85e07be09a25ec568132f104eaa1f06db35c28e21767e9d5b9eb7'
 ];
 
 test('populate out of order', function (t) {
     var docs = [
         { hash: hashes[1], body: 'BEEP BOOP\n', meta: {
             key: 'blorp',
-            prev: [ { hash: hashes[0], key: 'blorp' } ]
+            prev: [ hashes[0] ]
         } },
         { hash: hashes[3], body: 'BEEPITY BOOPITY\n', meta: {
             key: 'blorp',
-            prev: [
-                { hash: hashes[1], key: 'blorp' },
-                { hash: hashes[2], key: 'blorp' }
-            ]
+            prev: [ hashes[1], hashes[2] ]
         } },
         { hash: hashes[2], body: 'BeEp BoOp\n', meta: {
             key: 'blorp',
-            prev: [ { hash: hashes[0], key: 'blorp' } ]
+            prev: [ hashes[0] ]
         } },
         { hash: hashes[0], body: 'beep boop\n', meta: { key: 'blorp' } },
     ];
@@ -58,24 +55,21 @@ test('out of order', function (t) {
     t.plan(10);
     
     var expected = {};
-    expected.heads = [ { hash: hashes[3], key: 'blorp' } ];
-    expected.tails = [ { hash: hashes[0], key: 'blorp' } ];
+    expected.heads = [ { hash: hashes[3] } ];
+    expected.tails = [ { hash: hashes[0] } ];
     expected.list = [
         { hash: hashes[0], meta: { key: 'blorp' } },
         { hash: hashes[1], meta: {
             key: 'blorp',
-            prev: [ { hash: hashes[0], key: 'blorp' } ]
+            prev: [ hashes[0] ]
         } },
         { hash: hashes[2], meta: {
             key: 'blorp',
-            prev: [ { hash: hashes[0], key: 'blorp' } ]
+            prev: [ hashes[0] ]
         } },
         { hash: hashes[3], meta: {
             key: 'blorp',
-            prev: [
-                { hash: hashes[1], key: 'blorp' },
-                { hash: hashes[2], key: 'blorp' }
-            ]
+            prev: [ hashes[1], hashes[2] ]
         } }
     ];
     expected.links = {};
@@ -113,10 +107,10 @@ function collect (cb) {
 }
 
 function check (t, fdb, expected) {
-    fdb.heads().pipe(collect(function (rows) {
+    fdb.heads('blorp').pipe(collect(function (rows) {
         t.deepEqual(rows, sort(expected.heads), 'heads');
     }));
-    fdb.tails().pipe(collect(function (rows) {
+    fdb.tails('blorp').pipe(collect(function (rows) {
         t.deepEqual(rows, sort(expected.tails), 'tails');
     }));
     Object.keys(expected.links).forEach(function (hash) {
