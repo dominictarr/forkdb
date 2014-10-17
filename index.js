@@ -5,6 +5,7 @@ var stringify = require('json-stable-stringify');
 var wrap = require('level-option-wrap');
 var has = require('has');
 var through = require('through2');
+var Readable = require('readable-stream').Readable;
 var readonly = require('read-only-stream');
 var isarray = require('isarray');
 var copy = require('shallow-copy');
@@ -161,28 +162,32 @@ ForkDB.prototype.history = function (hash) {
     
     r._read = function () {
         if (!next) return r.push(null);
-        
-        self.db.get([ 'meta', next ], onget);
+        self._fwdb.db.get([ 'meta', next ], onget);
     };
     return r;
     
     function onget (err, meta) {
         if (err) return r.emit('error', err)
+        var hash = next;
         var prev = getPrev(meta);
         
         if (prev.length === 0) {
             next = null;
-            r.push(meta);
+            r.push({ hash: hash, meta: meta });
         }
         else if (prev.length === 1) {
-            next = prev[0].hash;
-            r.push(meta);
+            next = prev[0] && typeof prev[0] === 'object'
+                ? prev[0].hash
+                : prev[0]
+            ;
+            r.push({ hash: hash, meta: meta });
         }
         else {
             next = null;
-            r.push(meta);
+            r.push({ hash: hash, meta: meta });
             prev.forEach(function (p) {
-                r.emit('branch', self.history(p.hash));
+                var ph = p && typeof p === 'object' ? p.hash : p;
+                r.emit('branch', self.history(ph));
             });
         }
     }
