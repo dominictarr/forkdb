@@ -33,7 +33,7 @@ test('slow update prev', function (t) {
     };
     var w = fdb.createWriteStream(meta, function (err, key) {
         t.ifError(err);
-        fdb.getMeta(key, function (err, res) {
+        fdb.get(key, function (err, res) {
             t.ifError(err);
             t.deepEqual(res, meta);
         });

@@ -35,7 +35,7 @@ test('first doc', function (t) {
         t.ifError(err);
         t.equal(key, hashes[0]);
         check(t, fdb, expected);
-        fdb.get(hashes[0]).pipe(concat(function (body) {
+        fdb.createReadStream(hashes[0]).pipe(concat(function (body) {
             t.equal(body.toString('utf8'), 'beep boop\n');
         }));
     }
@@ -66,10 +66,10 @@ test('second doc', function (t) {
         t.ifError(err);
         t.equal(key, hashes[1]);
         check(t, fdb, expected);
-        fdb.get(hashes[0]).pipe(concat(function (body) {
+        fdb.createReadStream(hashes[0]).pipe(concat(function (body) {
             t.equal(body.toString('utf8'), 'beep boop\n');
         }));
-        fdb.get(hashes[1]).pipe(concat(function (body) {
+        fdb.createReadStream(hashes[1]).pipe(concat(function (body) {
             t.equal(body.toString('utf8'), 'BEEP BOOP\n');
         }));
     }
@@ -110,13 +110,13 @@ test('third doc (conflict)', function (t) {
         t.ifError(err);
         t.equal(key, hashes[2]);
         check(t, fdb, expected);
-        fdb.get(hashes[0]).pipe(concat(function (body) {
+        fdb.createReadStream(hashes[0]).pipe(concat(function (body) {
             t.equal(body.toString('utf8'), 'beep boop\n');
         }));
-        fdb.get(hashes[1]).pipe(concat(function (body) {
+        fdb.createReadStream(hashes[1]).pipe(concat(function (body) {
             t.equal(body.toString('utf8'), 'BEEP BOOP\n');
         }));
-        fdb.get(hashes[2]).pipe(concat(function (body) {
+        fdb.createReadStream(hashes[2]).pipe(concat(function (body) {
             t.equal(body.toString('utf8'), 'BeEp BoOp\n');
         }));
     }
@@ -164,16 +164,16 @@ test('fourth doc (merge)', function (t) {
         t.ifError(err);
         t.equal(key, hashes[3]);
         check(t, fdb, expected);
-        fdb.get(hashes[0]).pipe(concat(function (body) {
+        fdb.createReadStream(hashes[0]).pipe(concat(function (body) {
             t.equal(body.toString('utf8'), 'beep boop\n');
         }));
-        fdb.get(hashes[1]).pipe(concat(function (body) {
+        fdb.createReadStream(hashes[1]).pipe(concat(function (body) {
             t.equal(body.toString('utf8'), 'BEEP BOOP\n');
         }));
-        fdb.get(hashes[2]).pipe(concat(function (body) {
+        fdb.createReadStream(hashes[2]).pipe(concat(function (body) {
             t.equal(body.toString('utf8'), 'BeEp BoOp\n');
         }));
-        fdb.get(hashes[3]).pipe(concat(function (body) {
+        fdb.createReadStream(hashes[3]).pipe(concat(function (body) {
             t.equal(body.toString('utf8'), 'BEEPITY BOOPITY\n');
         }));
     }

@@ -221,6 +221,10 @@ successfully to blob storage and leveldb under the key `key`.
 Optionally, you can set an `opts.prebatch(row, key)` function that masks the
 prebatch function declared in the constructor.
 
+## var r = fdb.createReadStream(hash)
+
+Return a readable stream `r` with the blob content at `hash`.
+
 ## var r = fdb.heads(key)
 
 Return a readable object stream `r` that outputs an object with `key` and `hash`
@@ -249,15 +253,11 @@ database.
 
 Constrain the output stream by passing in `opts.gt`, `opts.lt`, or `opts.limit`.
 
-## var r = fdb.get(hash)
-
-Return a readable stream `r` with the blob content at `hash`.
-
-## fdb.getMeta(hash, cb) 
+## fdb.get(hash, cb) 
 
 Get the metadata for `hash` and call `cb(err, meta)` with the result.
 
-## var r = fdb.getLinks(hash)
+## var r = fdb.links(hash)
 
 Return a readable object stream `r` that outputs an object with `key` and `hash`
 properties for every forward link of `hash`.

@@ -120,12 +120,12 @@ ForkDB.prototype.list = function (opts, cb) {
     return readonly(r.pipe(tr));
 };
 
-ForkDB.prototype.get = function (hash) {
+ForkDB.prototype.createReadStream = function (hash) {
     var r = this.store.createReadStream({ key: hash });
     return readonly(r.pipe(dropFirst()));
 };
 
-ForkDB.prototype.getMeta = function (hash, cb) {
+ForkDB.prototype.get = function (hash, cb) {
     this._fwdb.db.get([ 'meta', hash ], function (err, meta) {
         if (err && cb) cb(err)
         else if (cb) cb(null, meta)
@@ -143,7 +143,7 @@ ForkDB.prototype.history = function (hash) {
     
     r._read = function () {
         if (!next) return r.push(null);
-        self.getMeta(next, onget);
+        self.get(next, onget);
     };
     return r;
     
@@ -183,7 +183,7 @@ ForkDB.prototype.future = function (hash) {
         if (!next) return r.push(null);
         
         var pending = 2, ref = {};
-        self.getMeta(next, function (err, meta) {
+        self.get(next, function (err, meta) {
             if (err) return r.emit('error', err);
             ref.meta = meta;
             if (-- pending === 0) done();

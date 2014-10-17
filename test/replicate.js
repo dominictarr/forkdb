@@ -149,29 +149,29 @@ test('replicate verify', function (t) {
     check(t, fdb.a, expected);
     check(t, fdb.b, expected);
     
-    fdb.a.get(hashes[0]).pipe(concat(function (body) {
+    fdb.a.createReadStream(hashes[0]).pipe(concat(function (body) {
         t.equal(body.toString('utf8'), 'beep boop\n');
     }));
-    fdb.a.get(hashes[1]).pipe(concat(function (body) {
+    fdb.a.createReadStream(hashes[1]).pipe(concat(function (body) {
         t.equal(body.toString('utf8'), 'BEEP BOOP\n');
     }));
-    fdb.a.get(hashes[2]).pipe(concat(function (body) {
+    fdb.a.createReadStream(hashes[2]).pipe(concat(function (body) {
         t.equal(body.toString('utf8'), 'BeEp BoOp\n');
     }));
-    fdb.a.get(hashes[3]).pipe(concat(function (body) {
+    fdb.a.createReadStream(hashes[3]).pipe(concat(function (body) {
         t.equal(body.toString('utf8'), 'BEEPITY BOOPITY\n');
     }));
     
-    fdb.b.get(hashes[0]).pipe(concat(function (body) {
+    fdb.b.createReadStream(hashes[0]).pipe(concat(function (body) {
         t.equal(body.toString('utf8'), 'beep boop\n');
     }));
-    fdb.b.get(hashes[1]).pipe(concat(function (body) {
+    fdb.b.createReadStream(hashes[1]).pipe(concat(function (body) {
         t.equal(body.toString('utf8'), 'BEEP BOOP\n');
     }));
-    fdb.b.get(hashes[2]).pipe(concat(function (body) {
+    fdb.b.createReadStream(hashes[2]).pipe(concat(function (body) {
         t.equal(body.toString('utf8'), 'BeEp BoOp\n');
     }));
-    fdb.b.get(hashes[3]).pipe(concat(function (body) {
+    fdb.b.createReadStream(hashes[3]).pipe(concat(function (body) {
         t.equal(body.toString('utf8'), 'BEEPITY BOOPITY\n');
     }));
 });

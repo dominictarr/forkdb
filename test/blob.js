@@ -20,7 +20,7 @@ test('blob', function (t) {
     t.plan(2);
     var w = fdb.createWriteStream({}, function (err, key) {
         t.ifError(err);
-        fdb.get(key).pipe(concat(function (body) {
+        fdb.createReadStream(key).pipe(concat(function (body) {
             t.equal(body.toString('utf8'), blob);
         }));
     });

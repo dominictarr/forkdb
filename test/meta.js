@@ -20,7 +20,7 @@ test('meta', function (t) {
     t.plan(3);
     var w = fdb.createWriteStream({ x: 555 }, function (err, key) {
         t.ifError(err);
-        fdb.getMeta(key, function (err, res) {
+        fdb.get(key, function (err, res) {
             t.ifError(err);
             t.deepEqual(res, { x: 555 });
         });

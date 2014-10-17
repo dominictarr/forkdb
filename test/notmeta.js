@@ -20,7 +20,7 @@ test('fnmeta', function (t) {
     t.plan(3);
     var w = fdb.createWriteStream(function (err, key) {
         t.ifError(err);
-        fdb.getMeta(key, function (err, res) {
+        fdb.get(key, function (err, res) {
             t.ifError(err);
             t.deepEqual(res, {});
         });
@@ -32,7 +32,7 @@ test('notmeta', function (t) {
     t.plan(3);
     var w = fdb.createWriteStream(null, function (err, key) {
         t.ifError(err);
-        fdb.getMeta(key, function (err, res) {
+        fdb.get(key, function (err, res) {
             t.ifError(err);
             t.deepEqual(res, {});
         });

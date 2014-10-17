@@ -58,8 +58,8 @@ test('in order', function (t) {
     t.plan(10);
     
     var expected = {};
-    expected.heads = [ { hash: hashes[3], key: 'blorp' } ];
-    expected.tails = [ { hash: hashes[0], key: 'blorp' } ];
+    expected.heads = [ { hash: hashes[3] } ];
+    expected.tails = [ { hash: hashes[0] } ];
     expected.list = [
         { hash: hashes[0], meta: { key: 'blorp' } },
         { hash: hashes[1], meta: {
@@ -91,16 +91,16 @@ test('in order', function (t) {
     ];
     
     check(t, fdb, expected);
-    fdb.get(hashes[0]).pipe(concat(function (body) {
+    fdb.createReadStream(hashes[0]).pipe(concat(function (body) {
         t.equal(body.toString('utf8'), 'beep boop\n');
     }));
-    fdb.get(hashes[1]).pipe(concat(function (body) {
+    fdb.createReadStream(hashes[1]).pipe(concat(function (body) {
         t.equal(body.toString('utf8'), 'BEEP BOOP\n');
     }));
-    fdb.get(hashes[2]).pipe(concat(function (body) {
+    fdb.createReadStream(hashes[2]).pipe(concat(function (body) {
         t.equal(body.toString('utf8'), 'BeEp BoOp\n');
     }));
-    fdb.get(hashes[3]).pipe(concat(function (body) {
+    fdb.createReadStream(hashes[3]).pipe(concat(function (body) {
         t.equal(body.toString('utf8'), 'BEEPITY BOOPITY\n');
     }));
 });
@@ -113,10 +113,10 @@ function collect (cb) {
 }
 
 function check (t, fdb, expected) {
-    fdb.heads().pipe(collect(function (rows) {
+    fdb.heads('blorp').pipe(collect(function (rows) {
         t.deepEqual(rows, sort(expected.heads), 'heads');
     }));
-    fdb.tails().pipe(collect(function (rows) {
+    fdb.tails('blorp').pipe(collect(function (rows) {
         t.deepEqual(rows, sort(expected.tails), 'tails');
     }));
     Object.keys(expected.links).forEach(function (hash) {
