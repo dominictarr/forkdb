@@ -19,7 +19,7 @@ function ForkDB (db, opts) {
     if (!opts) opts = {};
     var sub = sublevel(db);
     this._fwdb = fwdb(db); // fwdb doesn't work with sublevels :/
-    this.db = db;
+    this.db = this._fwdb.db;
     this._log = scuttleup(sub.sublevel('seq'));
     this.store = defined(
         opts.store,
@@ -56,7 +56,9 @@ ForkDB.prototype.createWriteStream = function (meta, opts, cb) {
         var prev = getPrev(meta);
         var doc = { hash: w.key, key: meta.key, prev: prev };
         
-        self._fwdb.on('batch', function (rows) {
+        var key = defined(meta.key, 'undefined');
+        self._fwdb._create(doc, function (err, rows) {
+            if (err) return w.emit('error', err);
             if (prev.length === 0) {
                 rows.push({
                     type: 'put',
@@ -65,22 +67,22 @@ ForkDB.prototype.createWriteStream = function (meta, opts, cb) {
                 });
             }
             rows.push({ type: 'put', key: [ 'meta', w.key ], value: meta });
-        });
-        
-        var key = defined(meta.key, 'undefined');
-        self._fwdb._create(doc, function (err, rows) {
-            if (err) return w.emit('error', err);
             prebatch(rows, commit);
         });
     });
     return w;
     
     function commit (err, rows) {
-        if (err) w.emit('error', err);
-        else if (!isarray(rows)) {
-            w.emit('error', new Error('prebatch result is not an array'));
+        if (err) return w.emit('error', err);
+        if (!isarray(rows)) {
+            return w.emit('error', new Error(
+                'prebatch result is not an array'
+            ));
         }
-        else if (cb) cb(null, w.key);
+        self.db.batch(rows, function (err) {
+            if (err) return w.emit('error', err);
+            else if (cb) cb(null, w.key);
+        });
     }
 };
 
