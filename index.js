@@ -46,7 +46,7 @@ ForkDB.prototype.createWriteStream = function (meta, opts, cb) {
     if (!opts) opts = {};
     var prebatch = defined(
         opts.prebatch,
-        function (rows, key, fn) { fn(null, key, rows) }
+        function (rows, key, fn) { fn(null, rows) }
     );
     var w = this.store.createWriteStream();
     w.write(stringify(meta) + '\n');

@@ -16,12 +16,14 @@ var forkdb = require('../');
 
 test('prebatch invalid', function (t) {
     var fdb = forkdb(db, {
-        dir: path.join(tmpdir, 'blob'),
-        prebatch: function (rows, key, cb) { cb(null, 'yo') }
+        dir: path.join(tmpdir, 'blob')
     });
+    var opts = {
+        prebatch: function (rows, key, cb) { cb(null, 'yo') }
+    };
     
     t.plan(1);
-    var w = fdb.createWriteStream({}, function (err, hash) {
+    var w = fdb.createWriteStream({}, opts, function (err, hash) {
         t.ok(err);
     });
     w.end('ABC');
