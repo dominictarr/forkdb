@@ -40,7 +40,11 @@ else if (cmd === 'create') {
     if (argv.key) {
         meta.key = argv.key;
     }
-    else meta.key === argv._[1];
+    else meta.key = argv._[1];
+    if (meta.key === undefined) {
+        console.error('Missing KEY\nusage: forkdb create KEY');
+        process.exit(1);
+    }
     
     if (argv.prev) {
         meta.prev = (isarray(argv.prev) ? argv.prev : [ argv.prev ])
