@@ -1,37 +1,120 @@
 var blob = require('content-addressable-blob-store');
-var defined = require('defined');
-var sublevel = require('level-sublevel');
-var stringify = require('json-stable-stringify');
 var wrap = require('level-option-wrap');
+var fwdb = require('fwdb');
+
+var defined = require('defined');
 var has = require('has');
+var isarray = require('isarray');
+var stringify = require('json-stable-stringify');
+
 var through = require('through2');
 var Readable = require('readable-stream').Readable;
 var readonly = require('read-only-stream');
-var isarray = require('isarray');
-var copy = require('shallow-copy');
-var scuttleup = require('scuttleup');
-var fwdb = require('fwdb');
+var writeonly = require('write-only-stream');
 
+var inherits = require('inherits');
+var EventEmitter = require('events').EventEmitter;
+
+var collect = require('./lib/collect.js');
+var dropFirst = require('./lib/drop_first.js');
+
+inherits(ForkDB, EventEmitter);
 module.exports = ForkDB;
 
 function ForkDB (db, opts) {
+    var self = this;
     if (!(this instanceof ForkDB)) return new ForkDB(db, opts);
     if (!opts) opts = {};
-    var sub = sublevel(db);
-    this._fwdb = fwdb(db); // fwdb doesn't work with sublevels :/
+    
+    this._fwdb = fwdb(db);
     this.db = this._fwdb.db;
-    this._log = scuttleup(sub.sublevel('seq'));
     this.store = defined(
         opts.store,
         blob({ dir: defined(opts.dir, './forkdb.blob') })
     );
+    this._queue = [];
+    
+    this._id = opts.id;
+    if (this._id === undefined) {
+        this._queue.push(function (cb) {
+            self._getId(function (err, id) {
+                if (err) return cb(err);
+                self._id = id;
+                cb(null);
+            });
+        });
+    }
+    this._seq = opts.seq;
+    if (this._seq === undefined) {
+        this._queue.push(function (cb) {
+            self._getSeq(function (err, seq) {
+                if (err) return cb(err);
+                self._seq = seq;
+                cb(null);
+            });
+        });
+    }
+    this._runQueue();
 }
+
+ForkDB.prototype._runQueue = function () {
+    var self = this;
+    if (self._running) return;
+    self._running = true;
+    (function next () {
+        if (self._queue.length === 0) {
+            self._running = false;
+            return;
+        }
+        self._queue.shift()(function (err) {
+            if (err) self.emit('error', err)
+            else next()
+        });
+    })();
+};
+
+ForkDB.prototype._getId = function (cb) {
+    var self = this;
+    self.db.get('_id', function (err, value) {
+        if (err && err.type === 'NotFoundError') {
+            value = generateId();
+            self.db.put('_id', value, function (err) {
+                if (err) return cb(err)
+                cb(null, value);
+            });
+        }
+        else if (err) return cb(err)
+        else cb(null, value)
+    });
+};
+
+ForkDB.prototype._getSeq = function (cb) {
+    var self = this;
+    self.db.get('_seq', function (err, value) {
+        if (err && err.type === 'NotFoundError') cb(null, 0);
+        else if (err) cb(err)
+        else cb(null, value)
+    });
+};
 
 ForkDB.prototype.replicate = function (opts, cb) {
     // ...
 };
 
 ForkDB.prototype.createWriteStream = function (meta, opts, cb) {
+    var self = this;
+    var input = through();
+    self._queue.push(function (fn) {
+        var w = self._createWriteStream(meta, opts, cb);
+        w.on('error', fn);
+        w.on('complete', function () { fn(null) });
+        input.pipe(w);
+    });
+    self._runQueue();
+    return writeonly(input);
+};
+
+ForkDB.prototype._createWriteStream = function (meta, opts, cb) {
     var self = this;
     if (typeof meta === 'function') {
         cb = meta;
@@ -67,6 +150,7 @@ ForkDB.prototype.createWriteStream = function (meta, opts, cb) {
                 });
             }
             rows.push({ type: 'put', key: [ 'meta', w.key ], value: meta });
+            rows.push({ type: 'put', key: '_seq', value: ++ self._seq });
             prebatch(rows, w.key, commit);
         });
     });
@@ -81,7 +165,8 @@ ForkDB.prototype.createWriteStream = function (meta, opts, cb) {
         }
         self.db.batch(rows, function (err) {
             if (err) return w.emit('error', err);
-            else if (cb) cb(null, w.key);
+            if (cb) cb(null, w.key);
+            w.emit('complete', w.key);
         });
     }
 };
@@ -184,10 +269,6 @@ ForkDB.prototype.history = function (hash) {
     }
 };
 
-function hashOf (p) {
-    return p && typeof p === 'object' ? p.hash : p;
-}
-
 ForkDB.prototype.future = function (hash) {
     var self = this;
     var r = new Readable({ objectMode: true });
@@ -242,36 +323,15 @@ function getPrev (meta) {
     }).filter(Boolean);
 }
 
-function dropFirst (cb) {
-    var self = this;
-    var line = false;
-    var bufs = cb ? [] : null;
-    return through(function (buf, enc, next) {
-        if (line) {
-            this.push(buf);
-            return next();
-        }
-        for (var i = 0; i < buf.length; i++) {
-            if (buf[i] === 10) {
-                line = true;
-                if (bufs) bufs.push(buf.slice(0,i));
-                if (cb) {
-                    var b = Buffer.concat(bufs).toString('utf8');
-                    try { var meta = JSON.parse(b) }
-                    catch (err) { return cb(err) }
-                    cb(null, meta);
-                }
-                this.push(buf.slice(i+1));
-                return next();
-            }
-        }
-        if (bufs) bufs.push(buf);
-    });
+function hashOf (p) {
+    return p && typeof p === 'object' ? p.hash : p;
 }
 
-function collect (cb) {
-    var rows = [];
-    return through.obj(write, end);
-    function write (row, enc, next) { rows.push(row); next() }
-    function end () { cb(null, rows) }
+
+function generateId () {
+    var s = '';
+    for (var i = 0; i < 4; i++) {
+        s += Math.floor(Math.random() * Math.pow(16,8)).toString(16);
+    }
+    return s;
 }
