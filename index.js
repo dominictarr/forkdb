@@ -44,16 +44,13 @@ function ForkDB (db, opts) {
             });
         });
     }
-    this._seq = opts.seq;
-    if (this._seq === undefined) {
-        this._queue.push(function (cb) {
-            self._getSeq(function (err, seq) {
-                if (err) return cb(err);
-                self._seq = seq;
-                cb(null);
-            });
+    this._queue.push(function (cb) {
+        self._getSeq(function (err, seq) {
+            if (err) return cb(err);
+            self._seq = seq;
+            cb(null);
         });
-    }
+    });
     this._runQueue();
 }
 
@@ -89,12 +86,17 @@ ForkDB.prototype._getId = function (cb) {
 };
 
 ForkDB.prototype._getSeq = function (cb) {
-    var self = this;
-    self.db.get('_seq', function (err, value) {
-        if (err && err.type === 'NotFoundError') cb(null, 0);
-        else if (err) cb(err)
-        else cb(null, value)
+    var r = this.db.createReadStream({
+        gt: [ 'seq', null ],
+        lt: [ 'seq', undefined ],
+        reverse: true,
+        limit: 1
     });
+    r.on('error', cb);
+    r.pipe(through.obj(write, end));
+    
+    function write (row, enc, next) { cb(null, row.key[1]) }
+    function end () { cb(null, 0) }
 };
 
 ForkDB.prototype.replicate = function (opts, cb) {
@@ -149,8 +151,9 @@ ForkDB.prototype._createWriteStream = function (meta, opts, cb) {
                     value: 0
                 });
             }
+            var skey = [ 'seq', ++ self._seq ];
             rows.push({ type: 'put', key: [ 'meta', w.key ], value: meta });
-            rows.push({ type: 'put', key: '_seq', value: ++ self._seq });
+            rows.push({ type: 'put', key: skey, value: w.key });
             prebatch(rows, w.key, commit);
         });
     });
