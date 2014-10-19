@@ -24,15 +24,15 @@ var fdb;
 var forkdb = require('../');
 
 test('prebatch', function (t) {
-    fdb = forkdb(db, {
-        dir: path.join(tmpdir, 'blob'),
+    fdb = forkdb(db, { dir: path.join(tmpdir, 'blob') });
+    var opts = {
         prebatch: function (rows, key, cb) {
             cb(null, rows.concat({
-                type: 'put', key: [ 'yo', 'skrill' ],
+                type: 'put', key: [ 'yo', 'skrill', key ],
                 value: 'drop it hard'
             }));
         }
-    });
+    };
     
     var docs = [
         { hash: hashes[1], body: 'BEEP BOOP\n', meta: {
@@ -57,7 +57,7 @@ test('prebatch', function (t) {
     (function next () {
         if (docs.length === 0) return;
         var doc = docs.shift();
-        var w = fdb.createWriteStream(doc.meta, function (err, hash) {
+        var w = fdb.createWriteStream(doc.meta, opts, function (err, hash) {
             t.ifError(err);
             t.equal(doc.hash, hash);
             next();
@@ -67,11 +67,11 @@ test('prebatch', function (t) {
 });
 
 test('prebatch', function (t) {
-    t.plan(12);
+    t.plan(11);
     
     var expected = {};
-    expected.heads = [ { hash: hashes[3], key: 'blorp' } ];
-    expected.tails = [ { hash: hashes[0], key: 'blorp' } ];
+    expected.heads = [ { hash: hashes[3] } ];
+    expected.tails = [ { hash: hashes[0] } ];
     expected.list = [
         { hash: hashes[0], meta: { key: 'blorp' } },
         { hash: hashes[1], meta: {
@@ -116,10 +116,18 @@ test('prebatch', function (t) {
         t.equal(body.toString('utf8'), 'BEEPITY BOOPITY\n');
     }));
     
-    fdb.db.get([ 'yo', 'skrill' ], function (err, res) {
-        t.ifError(err);
-        t.equal(res, 'drop it hard');
+    var yo = fdb.db.createReadStream({
+        gt: [ 'yo', 'skrill', null ],
+        lt: [ 'yo', 'skrill', undefined ]
     });
+    yo.pipe(collect(function (rows) {
+        t.deepEqual(rows, [
+            { key: [ 'yo', 'skrill', hashes[0] ], value: 'drop it hard' },
+            { key: [ 'yo', 'skrill', hashes[2] ], value: 'drop it hard' },
+            { key: [ 'yo', 'skrill', hashes[3] ], value: 'drop it hard' },
+            { key: [ 'yo', 'skrill', hashes[1] ], value: 'drop it hard' }
+        ]);
+    }));
 });
 
 function collect (cb) {

@@ -46,7 +46,7 @@ ForkDB.prototype.createWriteStream = function (meta, opts, cb) {
     if (!opts) opts = {};
     var prebatch = defined(
         opts.prebatch,
-        function (rows, fn) { fn(null, rows) }
+        function (rows, key, fn) { fn(null, key, rows) }
     );
     var w = this.store.createWriteStream();
     w.write(stringify(meta) + '\n');
@@ -67,7 +67,7 @@ ForkDB.prototype.createWriteStream = function (meta, opts, cb) {
                 });
             }
             rows.push({ type: 'put', key: [ 'meta', w.key ], value: meta });
-            prebatch(rows, commit);
+            prebatch(rows, w.key, commit);
         });
     });
     return w;
