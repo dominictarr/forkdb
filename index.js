@@ -159,7 +159,7 @@ ForkDB.prototype.replicate = function (opts, cb) {
         var p = hashes.length;
         var needed = [];
         hashes.forEach(function (h) {
-            self.get(h, function (err) {
+            self.get(h.replace(/^[^:]+:/,''), function (err) {
                 if (err) needed.push(h);
                 if (-- p === 0) {
                     pending += needed.length;
@@ -176,7 +176,7 @@ ForkDB.prototype.replicate = function (opts, cb) {
     function provideSince (seq) {
         var hashes = [];
         var r = self.db.createReadStream({
-            gt: [ 'seq', defined(seq, null) ],
+            gte: [ 'seq', defined(seq, null) ],
             lt: [ 'seq', undefined ]
         });
         r.pipe(through.obj(write, flush));

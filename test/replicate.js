@@ -103,7 +103,7 @@ test('replicating', function (t) {
         t.ifError(err);
         t.deepEqual(
             hs.sort(),
-            [ hashes[2], hashes[3], hashes[1] ].sort(),
+            [ hashes[3], hashes[1] ].sort(),
             'hashes'
         );
     });
