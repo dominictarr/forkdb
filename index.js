@@ -101,6 +101,12 @@ ForkDB.prototype._getSeq = function (cb) {
 };
 
 ForkDB.prototype.replicate = function (opts, cb) {
+    if (typeof opts === 'function') {
+        cb = opts;
+        opts = {};
+    }
+    if (!opts) opts = {};
+    
     var self = this;
     var otherId = null;
     var errors = [], exchanged = [];
@@ -127,14 +133,13 @@ ForkDB.prototype.replicate = function (opts, cb) {
     });
     ex.on('response', function (shash, stream) {
         var hash = shash.replace(/^[^:]+:/, '');
-        var opts = { expected: hash }; // TODO
+        var opts = { expected: hash }; // TODO: verify hash
         var df = dropFirst(function (err, meta) {
             df.pipe(self.createWriteStream(meta, opts, function (err) {
                 if (err) errors.push(err);
                 else exchanged.push(hash)
-                if (-- pending === 0) {
-                    if (cb) cb(errors.length ? errors : null, exchanged);
-                }
+                if (-- pending !== 0) return;
+                if (cb) cb(errors.length ? errors : null, exchanged);
             }));
         });
         stream.pipe(df)
