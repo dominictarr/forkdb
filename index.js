@@ -1,6 +1,7 @@
 var blob = require('content-addressable-blob-store');
 var wrap = require('level-option-wrap');
 var fwdb = require('fwdb');
+var exchange = require('hash-exchange');
 
 var defined = require('defined');
 var has = require('has');
@@ -100,7 +101,90 @@ ForkDB.prototype._getSeq = function (cb) {
 };
 
 ForkDB.prototype.replicate = function (opts, cb) {
-    // ...
+    var self = this;
+    var otherId = null;
+    var errors = [], exchanged = [];
+    var pending = 1;
+    
+    var ex = exchange(function (shash) {
+        if (/^meta=/.test(shash)) return;
+        var hash = shash.replace(/^[^:]+:/, '');
+        return self.store.createReadStream({ key: hash });
+    });
+    ex.on('available', function (hashes) {
+        var h = hashes[0];
+        if (/^meta=/.test(h)) {
+            try { var meta = JSON.parse(h.replace(/^meta=/, '')) }
+            catch (err) { return ex.end() }
+            if (meta && meta.id !== undefined) {
+                pending --;
+                otherId = meta.id;
+                provideFor(meta.id);
+            }
+            else request(meta, hashes.slice(1))
+        }
+        else request({}, hashes)
+    });
+    ex.on('response', function (shash, stream) {
+        var hash = shash.replace(/^[^:]+:/, '');
+        var opts = { expected: hash }; // TODO
+        var df = dropFirst(function (err, meta) {
+            df.pipe(self.createWriteStream(meta, opts, function (err) {
+                if (err) errors.push(err);
+                else exchanged.push(hash)
+                if (-- pending === 0) {
+                    cb(errors.length ? errors : null, exchanged);
+                }
+            }));
+        });
+        stream.pipe(df)
+    });
+    
+    if (self._seq === undefined) {
+        self._queue.push(function (fn) {
+            ex.provide('meta=' + JSON.stringify({ id: self._id }));
+            fn();
+        });
+    }
+    else ex.provide('meta=' + JSON.stringify({ id: self._id }));
+    return ex;
+    
+    function request (meta, hashes) {
+        if (!meta) meta = {};
+        var p = hashes.length;
+        var needed = [];
+        hashes.forEach(function (h) {
+            self.get(h, function (err) {
+                if (err) needed.push(h);
+                if (-- p === 0) {
+                    pending += needed.length;
+                    ex.request(needed);
+                }
+            });
+        });
+    }
+    
+    function provideFor (id) {
+        provideSince(0);
+    }
+    
+    function provideSince (seq) {
+        var hashes = [];
+        var r = self.db.createReadStream({
+            gt: [ 'seq', defined(seq, null) ],
+            lt: [ 'seq', undefined ]
+        });
+        r.pipe(through.obj(write, flush));
+        function write (row, enc, next) {
+            hashes.push(row.key[1] + ':' + row.value);
+            if (hashes.length >= 25) flush();
+            next();
+        }
+        function flush () {
+            if (hashes.length) ex.provide(hashes);
+            hashes = [];
+        }
+    }
 };
 
 ForkDB.prototype.createWriteStream = function (meta, opts, cb) {
