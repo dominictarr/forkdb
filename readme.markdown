@@ -22,7 +22,7 @@ Here we'll create a new document with the contents `beep boop` under the key
 `"blorp"`.
 
 ```
-$ echo beep boop | forkdb create --key=blorp
+$ echo beep boop | forkdb create blorp
 9c0564511643d3bc841d769e27b1f4e669a75695f2a2f6206bca967f298390a0
 ```
 
@@ -30,20 +30,21 @@ This document is now the singular head of the blorp key:
 
 ```
 $ forkdb heads blorp
-{"hash":"9c0564511643d3bc841d769e27b1f4e669a75695f2a2f6206bca967f298390a0","key":"blorp"}
+{"hash":"9c0564511643d3bc841d769e27b1f4e669a75695f2a2f6206bca967f298390a0"}
 ```
 
 But now, we'll make a new document that links back to the document we just
 created and see that the head has updated to the new document's hash:
 
 ```
-$ echo BEEP BOOP | forkdb create --key=blorp --prev [ --hash=9c0564511643d3bc841d769e27b1f4e669a75695f2a2f6206bca967f298390a0 --key=blorp ]
-fcbcbe4389433dd9652d279bb9044b8e570d7f033fab18189991354228a43e99
+$ echo BEEP BOOP | forkdb create blorp \
+  --prev=9c0564511643d3bc841d769e27b1f4e669a75695f2a2f6206bca967f298390a0
+f5ff29843ef0658e2a1e14ed31198807ce8302936116545928756844be45fe41
 ```
 
 ```
-$ forkdb heads
-{"hash":"fcbcbe4389433dd9652d279bb9044b8e570d7f033fab18189991354228a43e99","key":"blorp"}
+$ forkdb heads blorp
+{"hash":"f5ff29843ef0658e2a1e14ed31198807ce8302936116545928756844be45fe41"}
 ```
 
 But suppose that while we were making our `BEEP BOOP` update, somebody else was
@@ -51,17 +52,18 @@ working on an edit to the same previous hash, 9c056451. In other words, a
 conflict!
 
 ```
-$ echo BeEp BoOp | forkdb create --key=blorp --prev [ --hash=9c0564511643d3bc841d769e27b1f4e669a75695f2a2f6206bca967f298390a0 --key=blorp ]
-c3122c908bf03bb8b36eaf3b46e27437e23827e6a341439974d5d38fb22fbdfc
+$ echo BeEp BoOp | forkdb create blorp \
+  --prev=9c0564511643d3bc841d769e27b1f4e669a75695f2a2f6206bca967f298390a0
+6c0c881fad7adb3fec52b75ab0de8670391ceb8847c8e4c3a2dce9a56244b328
 ```
 
-This is no problem for forkdb. There are just 2 heads now, which is completely
-fine:
+This is no problem for forkdb. There are just 2 heads of the `blorp` key now,
+which is completely fine:
 
 ```
-$ forkdb heads
-{"hash":"c3122c908bf03bb8b36eaf3b46e27437e23827e6a341439974d5d38fb22fbdfc","key":"blorp"}
-{"hash":"fcbcbe4389433dd9652d279bb9044b8e570d7f033fab18189991354228a43e99","key":"blorp"}
+$ forkdb heads blorp
+{"hash":"6c0c881fad7adb3fec52b75ab0de8670391ceb8847c8e4c3a2dce9a56244b328"}
+{"hash":"f5ff29843ef0658e2a1e14ed31198807ce8302936116545928756844be45fe41"}
 ```
 
 A UI could show both (or more!) versions side by side or perhaps have a
@@ -71,15 +73,17 @@ However, we can also merge these 2 documents back into 1 by creating a new
 document that points back and both heads:
 
 ```
-$ echo BEEPITY BOOPITY | forkdb create --key=blorp --prev [ --hash=fcbcbe4389433dd9652d279bb9044b8e570d7f033fab18189991354228a43e99 --key=blorp ] --prev [ --hash=c3122c908bf03bb8b36eaf3b46e27437e23827e6a341439974d5d38fb22fbdfc --key=blorp ]
-e3bd9d14b8c298e57dbbb10235306bd46d12ebaeccd067dc9cdf7ed25b10a96d
+$ echo BEEPITY BOOPITY | forkdb create blorp \
+  --prev=6c0c881fad7adb3fec52b75ab0de8670391ceb8847c8e4c3a2dce9a56244b328 \
+  --prev=f5ff29843ef0658e2a1e14ed31198807ce8302936116545928756844be45fe41
+058647fc544f70a96d5d083ae7e3c373b441fc3d55b993407254fcce3c732f1e
 ```
 
 and now we're back to a single head:
 
 ```
 $ forkdb heads blorp
-{"hash":"e3bd9d14b8c298e57dbbb10235306bd46d12ebaeccd067dc9cdf7ed25b10a96d","key":"blorp"}
+{"hash":"058647fc544f70a96d5d083ae7e3c373b441fc3d55b993407254fcce3c732f1e"}
 ```
 
 However, all of the previous states of the blorp key were saved into the
@@ -87,11 +91,11 @@ history, which we can inspect by picking a key (in this case, the new head
 e3bd9d14) and traversing back through the branches to end up at the tail:
 
 ```
-$ forkdb history e3bd9d14b8c298e57dbbb10235306bd46d12ebaeccd067dc9cdf7ed25b10a96d
-+- blorp :: e3bd9d14b8c298e57dbbb10235306bd46d12ebaeccd067dc9cdf7ed25b10a96d
- +- blorp :: fcbcbe4389433dd9652d279bb9044b8e570d7f033fab18189991354228a43e99
+$ forkdb history 058647fc544f70a96d5d083ae7e3c373b441fc3d55b993407254fcce3c732f1e
++- blorp :: 058647fc544f70a96d5d083ae7e3c373b441fc3d55b993407254fcce3c732f1e
+ +- blorp :: 6c0c881fad7adb3fec52b75ab0de8670391ceb8847c8e4c3a2dce9a56244b328
  |- blorp :: 9c0564511643d3bc841d769e27b1f4e669a75695f2a2f6206bca967f298390a0
- +- blorp :: c3122c908bf03bb8b36eaf3b46e27437e23827e6a341439974d5d38fb22fbdfc
+ +- blorp :: f5ff29843ef0658e2a1e14ed31198807ce8302936116545928756844be45fe41
  |- blorp :: 9c0564511643d3bc841d769e27b1f4e669a75695f2a2f6206bca967f298390a0
 ```
 
@@ -100,12 +104,14 @@ $ forkdb history e3bd9d14b8c298e57dbbb10235306bd46d12ebaeccd067dc9cdf7ed25b10a96
 First, we'll populate two databases, `/tmp/a` and `/tmp/b` with some data:
 
 ```
-$ echo beep boop | forkdb -d /tmp/a create --key=msg
+$ echo beep boop | forkdb -d /tmp/a create msg
 0673a2977261a9413b8a1abe8389b7c6ef327b319f60f814dece9617d43465c0
-$ echo RAWR | forkdb -d /tmp/a create --key=msg --prev.hash=0673a2977261a9413b8a1abe8389b7c6ef327b319f60f814dece9617d43465c0 --prev.key=msg
-d5c4f37b7dc7731f38a180edf714cd3ce1ce3e641fcf13b95ca470bf55a1833e
-$ echo mooo | forkdb -d /tmp/b create --key=msg --prev.hash=0673a2977261a9413b8a1abe8389b7c6ef327b319f60f814dece9617d43465c0 --prev.key=msg
-530ef19f9f7ed4d2a01bf2e3eba53da2cb1959eb0af5ef52adb10223826b0760
+$ echo RAWR | forkdb -d /tmp/a create msg \
+  --prev=0673a2977261a9413b8a1abe8389b7c6ef327b319f60f814dece9617d43465c0
+071f8d4403f88ca431023ec12a277b28bcd68ab41c5043a5bf7e690b23ba7184
+$ echo moo | forkdb -d /tmp/b create msg \
+  --prev=0673a2977261a9413b8a1abe8389b7c6ef327b319f60f814dece9617d43465c0
+e708cc6e5114ac184e0cf81aca203ddd6b02a599d9d85ac756b37b9b19cd4fae
 ```
 
 Now we can use [dupsh](https://npmjs.org/package/dupsh) to pipe replication
@@ -129,6 +135,43 @@ and then elsewhere we can connect to port 5000 for replication:
 ```
 $ dupsh 'forkdb sync -d /tmp/b' 'nc localhost 5000'
 ```
+
+No matter how you get the data to each database, everything is now in sync!
+
+```
+$ forkdb -d /tmp/a heads msg
+{"hash":"071f8d4403f88ca431023ec12a277b28bcd68ab41c5043a5bf7e690b23ba7184"}
+{"hash":"e708cc6e5114ac184e0cf81aca203ddd6b02a599d9d85ac756b37b9b19cd4fae"}
+$ forkdb -d /tmp/b heads msg
+{"hash":"071f8d4403f88ca431023ec12a277b28bcd68ab41c5043a5bf7e690b23ba7184"}
+{"hash":"e708cc6e5114ac184e0cf81aca203ddd6b02a599d9d85ac756b37b9b19cd4fae"}
+```
+
+If we make a merge update on `/tmp/b`:
+
+```
+$ echo woop | forkdb -d /tmp/b create msg \
+  --prev=071f8d4403f88ca431023ec12a277b28bcd68ab41c5043a5bf7e690b23ba7184 \
+  --prev=e708cc6e5114ac184e0cf81aca203ddd6b02a599d9d85ac756b37b9b19cd4fae
+7e38e3a49db243c39b86e8b17535745b8967b914b5aeaf442c8fac9f3e6a7b8b
+```
+
+and then merge again:
+
+```
+$ dupsh 'forkdb sync -d /tmp/a' 'forkdb sync -d /tmp/b'
+```
+
+now the data is merged on both databases:
+
+```
+$ forkdb -d /tmp/a heads msg
+{"hash":"7e38e3a49db243c39b86e8b17535745b8967b914b5aeaf442c8fac9f3e6a7b8b"}
+$ forkdb -d /tmp/b heads msg
+{"hash":"7e38e3a49db243c39b86e8b17535745b8967b914b5aeaf442c8fac9f3e6a7b8b"}
+```
+
+Replication woo.
 
 ## api example
 
