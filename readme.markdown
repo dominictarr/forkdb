@@ -10,6 +10,10 @@ immediate resolution, forkdb anticipates and welcomes conflicts.
 Interfaces built on forkdb should be honest about the underlying data model and
 embrace conflicts too.
 
+For a lower-level version of just the link management for multi-master
+replication, check out [fwdb](https://npmjs.org/package/fwdb), upon which this
+library is based.
+
 [![build status](https://secure.travis-ci.org/substack/forkdb.png)](http://travis-ci.org/substack/forkdb)
 
 # example
