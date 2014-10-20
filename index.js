@@ -115,9 +115,7 @@ ForkDB.prototype.replicate = function (opts, cb) {
     
     var ex = exchange(function (shash) {
         if (/^meta=/.test(shash)) return;
-        if (mode === 'pull') return process.nextTick(function () {
-            if (pending === 0) done();
-        });
+        if (mode === 'pull') return;
         
         var hash = shash.replace(/^[^:]+:/, '');
         pending ++;
@@ -125,6 +123,7 @@ ForkDB.prototype.replicate = function (opts, cb) {
         r.on('end', function () { if (-- pending === 0) done() });
         return r;
     });
+    
     ex.on('available', function (hashes) {
         var h = hashes[0];
         if (/^meta=/.test(h)) {

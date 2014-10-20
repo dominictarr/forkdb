@@ -113,28 +113,28 @@ test('push pull verify', function (t) {
     
     fdb.a.heads('blorp', function (err, hs) {
         t.ifError(err);
-        t.deepEqual(hs, [ { hash: hashes[3] } ]);
+        t.deepEqual(hs, [ { hash: hashes[2] } ], 'heads a');
     });
     
     fdb.a.list(function (err, hs) {
         t.ifError(err);
         t.deepEqual(
             mhashes(hs).sort(),
-            [ hashes[0], hashes[1], hashes[2], hashes[3] ].sort(),
+            [ hashes[0], hashes[2] ].sort(),
             'list a'
         );
     });
     
     fdb.b.heads('blorp', function (err, hs) {
         t.ifError(err);
-        t.deepEqual(hs, [ { hash: hashes[3] } ]);
+        t.deepEqual(hs, [ { hash: hashes[3] } ], 'heads b');
     });
     
     fdb.b.list(function (err, hs) {
         t.ifError(err);
         t.deepEqual(
             mhashes(hs).sort(),
-            [ hashes[1], hashes[2], hashes[3] ].sort(),
+            [ hashes[0], hashes[1], hashes[2], hashes[3] ].sort(),
             'list b'
         );
     });
