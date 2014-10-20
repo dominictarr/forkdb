@@ -360,14 +360,12 @@ usage: forkdb COMMAND OPTIONS
 
     --dbdir    directory to use for db
 
-forkdb create --key=KEY --prev [ --key=... --hash=... ] ...
+forkdb create KEY {--prev=HASH ...}
 
   Create a new document with content from stdin under KEY.
-  Set pointers to previous content with a "prev" key in json or with
-  `--prev [ ... ]` subarg syntax.
+  Set pointers to previous content with "--prev". To point back at multiple
+  documents (a merge), use --prev more than once.
   
-  Omit `--prev` if there are no pointers.
-
 forkdb list {--lt=LT, --gt=GT, --limit=LIMIT}
 
   List all the document metadata in the database.
