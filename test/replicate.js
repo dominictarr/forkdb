@@ -101,11 +101,19 @@ test('replicating', function (t) {
     t.plan(4);
     var ra = fdb.a.replicate(function (err, hs) {
         t.ifError(err);
-        t.deepEqual(hs.sort(), [ hashes[2], hashes[3], hashes[1] ].sort());
+        t.deepEqual(
+            hs.sort(),
+            [ hashes[2], hashes[3], hashes[1] ].sort(),
+            'hashes'
+        );
     });
     var rb = fdb.b.replicate(function (err, hs) {
         t.ifError(err);
-        t.deepEqual(hs.sort(), [ hashes[0] ].sort());
+        t.deepEqual(
+            hs.sort(),
+            [ hashes[0] ].sort(),
+            'hashes'
+        );
     });
     ra.pipe(rb).pipe(ra);
 });
@@ -114,8 +122,8 @@ test('replicate verify', function (t) {
     t.plan(20);
     
     var expected = {};
-    expected.heads = [ { hash: hashes[3], key: 'blorp' } ];
-    expected.tails = [ { hash: hashes[0], key: 'blorp' } ];
+    expected.heads = [ { hash: hashes[3] } ];
+    expected.tails = [ { hash: hashes[0] } ];
     expected.list = [
         { hash: hashes[0], meta: { key: 'blorp' } },
         { hash: hashes[1], meta: {
@@ -184,10 +192,10 @@ function collect (cb) {
 }
 
 function check (t, fdb, expected) {
-    fdb.heads().pipe(collect(function (rows) {
+    fdb.heads('blorp').pipe(collect(function (rows) {
         t.deepEqual(rows, sort(expected.heads), 'heads');
     }));
-    fdb.tails().pipe(collect(function (rows) {
+    fdb.tails('blorp').pipe(collect(function (rows) {
         t.deepEqual(rows, sort(expected.tails), 'tails');
     }));
     Object.keys(expected.links).forEach(function (hash) {
