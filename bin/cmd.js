@@ -100,8 +100,8 @@ else if (cmd === 'future') {
     if (argv._.length < 2) return showHelp(1);
     showFuture(fdb, argv._[1], function () { db.close() });
 }
-else if (cmd === 'sync') {
-    var rep = fdb.replicate({ mode: 'sync' }, function (errors, hashes) {
+else if (cmd === 'sync' || cmd === 'pull' || cmd === 'push') {
+    var rep = fdb.replicate({ mode: cmd }, function (errors, hashes) {
         if (errors) {
             errors.forEach(function (err) { console.error(err) });
         }
