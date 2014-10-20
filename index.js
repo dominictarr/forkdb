@@ -115,6 +115,10 @@ ForkDB.prototype.replicate = function (opts, cb) {
     
     var ex = exchange(function (shash) {
         if (/^meta=/.test(shash)) return;
+        if (mode === 'pull') return process.nextTick(function () {
+            if (pending === 0) done();
+        });
+        
         var hash = shash.replace(/^[^:]+:/, '');
         pending ++;
         var r = self.store.createReadStream({ key: hash });
