@@ -101,13 +101,14 @@ ForkDB.prototype._getSeq = function (cb) {
 };
 
 ForkDB.prototype.replicate = function (opts, cb) {
+    var self = this;
     if (typeof opts === 'function') {
         cb = opts;
         opts = {};
     }
     if (!opts) opts = {};
+    var mode = defined(opts.mode, 'sync');
     
-    var self = this;
     var otherId = null;
     var errors = [], exchanged = [];
     var pending = 1;
@@ -115,7 +116,10 @@ ForkDB.prototype.replicate = function (opts, cb) {
     var ex = exchange(function (shash) {
         if (/^meta=/.test(shash)) return;
         var hash = shash.replace(/^[^:]+:/, '');
-        return self.store.createReadStream({ key: hash });
+        pending ++;
+        var r = self.store.createReadStream({ key: hash });
+        r.on('end', function () { if (-- pending === 0) done() });
+        return r;
     });
     ex.on('available', function (hashes) {
         var h = hashes[0];
@@ -138,8 +142,7 @@ ForkDB.prototype.replicate = function (opts, cb) {
             df.pipe(self.createWriteStream(meta, opts, function (err) {
                 if (err) errors.push(err);
                 else exchanged.push(hash)
-                if (-- pending !== 0) return;
-                if (cb) cb(errors.length ? errors : null, exchanged);
+                if (-- pending === 0) done();
             }));
         });
         stream.pipe(df)
@@ -154,7 +157,13 @@ ForkDB.prototype.replicate = function (opts, cb) {
     else ex.provide('meta=' + JSON.stringify({ id: self._id }));
     return ex;
     
+    function done () {
+        if (cb) cb(errors.length ? errors : null, exchanged);
+    }
+    
     function request (meta, hashes) {
+        if (mode === 'push') return;
+        
         if (!meta) meta = {};
         var p = hashes.length;
         var needed = [];
