@@ -197,7 +197,7 @@ ForkDB.prototype.createWriteStream = function (meta, opts, cb) {
     var input = through();
     self._queue.push(function (fn) {
         var w = self._createWriteStream(meta, opts, cb);
-        w.on('error', fn);
+        w.on('error', function (err) { fn() });
         w.on('complete', function () { fn(null) });
         input.pipe(w);
     });
