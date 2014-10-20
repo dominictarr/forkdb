@@ -133,7 +133,7 @@ ForkDB.prototype.replicate = function (opts, cb) {
                 if (err) errors.push(err);
                 else exchanged.push(hash)
                 if (-- pending === 0) {
-                    cb(errors.length ? errors : null, exchanged);
+                    if (cb) cb(errors.length ? errors : null, exchanged);
                 }
             }));
         });
