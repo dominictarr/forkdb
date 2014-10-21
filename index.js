@@ -126,7 +126,7 @@ ForkDB.prototype.replicate = function (opts, cb) {
     
     var otherId = null;
     var errors = [], exchanged = [];
-    var pending = 1;
+    var pending = 1, fpending = 2;
     
     var ex = exchange(function (shash) {
         if (/^meta=/.test(shash)) return;
@@ -141,8 +141,7 @@ ForkDB.prototype.replicate = function (opts, cb) {
         r.on('end', function () {
             self._getSeen(otherId, function (err, seq) {
                 if (err) return cb && cb(err)
-                seq = Math.max(seq, shash.split(':')[0]);
-console.error('SEEN=', otherId, seq, err);
+                seq = Math.max(seq, Number(shash.split(':')[0]));
                 self.db.put([ '_seen', otherId ], seq, function (err) {
                     if (err) return cb && cb(err)
                     self._seen[otherId] = seq;
@@ -163,6 +162,12 @@ console.error('SEEN=', otherId, seq, err);
                 otherId = meta.id;
                 provideFor(meta.id);
             }
+            else if (meta && meta.seq) {
+                self.db.put([ '_seen', otherId ], meta.seq, function (err) {
+                    if (err) cb && cb(err)
+                    else if (--fpending === 0) finish()
+                });
+            }
             else request(meta, hashes.slice(1))
         }
         else request({}, hashes)
@@ -182,14 +187,27 @@ console.error('SEEN=', otherId, seq, err);
     
     if (self._seq === undefined) {
         self._queue.push(function (fn) {
-            ex.provide('meta=' + JSON.stringify({ id: self._id }));
+            ex.provide('meta=' + JSON.stringify({
+                id: self._id,
+                _r: Math.random()
+            }));
             fn();
         });
     }
-    else ex.provide('meta=' + JSON.stringify({ id: self._id }));
+    else ex.provide('meta=' + JSON.stringify({
+        id: self._id,
+        _r: Math.random()
+    }));
     return ex;
     
     function done () {
+        ex.provide('meta=' + JSON.stringify({
+            seq: self._seq,
+            _r: Math.random()
+        }));
+        if (-- fpending === 0) finish();
+    }
+    function finish () {
         if (cb) cb(errors.length ? errors : null, exchanged);
     }
     
