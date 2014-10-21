@@ -33,6 +33,7 @@ function ForkDB (db, opts) {
         opts.store,
         blob({ dir: defined(opts.dir, './forkdb.blob') })
     );
+    this._seen = {};
     this._queue = [];
     
     this._id = opts.id;
@@ -100,6 +101,20 @@ ForkDB.prototype._getSeq = function (cb) {
     function end () { cb(null, 0) }
 };
 
+ForkDB.prototype._getSeen = function (id, cb) {
+    var self = this;
+    if (has(self._seen, id)) {
+        return process.nextTick(function () {
+            cb(null, self._seen[id]);
+        });
+    }
+    self.db.get([ '_seen', id ], function (err, seq) {
+        if (err && err.type !== 'NotFoundError') return cb(err);
+        var n = self._seen[id] = seq || 0;
+        cb(null, n);
+    });
+};
+
 ForkDB.prototype.replicate = function (opts, cb) {
     var self = this;
     if (typeof opts === 'function') {
@@ -123,7 +138,18 @@ ForkDB.prototype.replicate = function (opts, cb) {
         var hash = shash.replace(/^[^:]+:/, '');
         pending ++;
         var r = self.store.createReadStream({ key: hash });
-        r.on('end', function () { if (-- pending === 0) done() });
+        r.on('end', function () {
+            self._getSeen(otherId, function (err, seq) {
+                if (err) return cb && cb(err)
+                seq = Math.max(seq, shash.split(':')[0]);
+console.error('SEEN=', otherId, seq, err);
+                self.db.put([ '_seen', otherId ], seq, function (err) {
+                    if (err) return cb && cb(err)
+                    self._seen[otherId] = seq;
+                    if (-- pending === 0) done()
+                });
+            });
+        });
         return r;
     });
     
@@ -185,7 +211,10 @@ ForkDB.prototype.replicate = function (opts, cb) {
     }
     
     function provideFor (id) {
-        provideSince(0);
+        self._getSeen(id, function (err, seq) {
+            if (err) cb && cb(err)
+            else provideSince(seq);
+        });
     }
     
     function provideSince (seq) {
