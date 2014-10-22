@@ -111,8 +111,22 @@ ForkDB.prototype._getSeen = function (id, cb) {
     }
     self.db.get([ '_seen', id ], function (err, seq) {
         if (err && err.type !== 'NotFoundError') return cb(err);
-        var n = self._seen[id] = seq || 0;
+        var n = self._seen[id] = defined(seq, -1);
         cb(null, n);
+    });
+};
+
+ForkDB.prototype._addSeen = function (id, aseq, cb) {
+    var self = this;
+    self._getSeen(id, function (err, seq) {
+        if (err) return fn(null, rows);
+        var mseq = Math.max(seq, aseq) || 0;
+        self._seen[id] = mseq;
+        cb(null, {
+            type: 'put',
+            key: [ '_seen', id ],
+            value: mseq
+        });
     });
 };
 
@@ -124,6 +138,7 @@ ForkDB.prototype.replicate = function (meta, opts, cb) {
         var r = self._replicate(meta, opts, cb);
         r.on('available', dup.emit.bind(dup, 'available'));
         r.on('response', dup.emit.bind(dup, 'response'));
+        r.on('since', dup.emit.bind(dup, 'since'));
         
         input.pipe(r).pipe(output);
         fn();
@@ -145,7 +160,7 @@ ForkDB.prototype._replicate = function (opts, cb) {
     var errors = [], exchanged = [];
     var pending = 1;
     
-    var eopts = { id: self._id, meta: { seq: self._seq } };
+    var eopts = { id: self._id };
     var ex = exchange(eopts, function (hash, fn) {
         if (mode === 'pull') {
             if (pending === 0) done();
@@ -168,14 +183,21 @@ ForkDB.prototype._replicate = function (opts, cb) {
         otherId = id;
         self._getSeen(id, function (err, seq) {
             if (err) return cb(err)
-            else ex.since(seq)
+            else ex.since({ seq: seq })
         });
     });
     
-    ex.on('since', function (seq) {
+    ex.on('since', function (meta) {
+        if (meta.seq) provideSeq(meta.seq);
+        else if (meta.seen) {
+            self._addSeen(otherId, meta.seen, function () {});
+        }
+    });
+    
+    function provideSeq (seq) {
         var hashes = [];
         var r = self.db.createReadStream({
-            gte: [ 'seq', defined(seq, null) ],
+            gt: [ 'seq', defined(seq + 1, null) ],
             lt: [ 'seq', undefined ]
         });
         r.pipe(through.obj(write, flush));
@@ -188,7 +210,7 @@ ForkDB.prototype._replicate = function (opts, cb) {
             if (hashes.length) ex.provide(hashes);
             hashes = [];
         }
-    });
+    }
     
     ex.on('available', function (hashes) {
         if (mode === 'push') return;
@@ -209,24 +231,26 @@ ForkDB.prototype._replicate = function (opts, cb) {
         var opts = {
             expected: hash, // TODO: verify hash
             prebatch: function (rows, key, fn) {
-                self._getSeen(otherId, function (err, seq) {
-                    if (err) return fn(rows);
-                    var mseq = Math.max(seq, meta.seq) || 0;
-                    rows.push({
-                        type: 'put',
-                        key: [ '_seen', otherId ],
-                        value: mseq
-                    });
-                    self._seen[otherId] = mseq;
-                    fn(null, rows);
+                self._addSeen(otherId, meta.seq || 0, function (err, rows_) {
+                    if (err) fn(null, rows)
+                    else fn(null, rows.concat(rows_))
                 });
             }
         };
-        var df = dropFirst(function (err, meta) {
-            df.pipe(self.createWriteStream(meta, opts, function (err) {
-                if (err) errors.push(err);
-                else exchanged.push(hash)
-                if (-- pending === 0) done();
+        var df = dropFirst(function (err, dmeta) {
+            df.pipe(self.createWriteStream(dmeta, opts, function (err) {
+                if (err) {
+                    errors.push(err);
+                    if (-- pending === 0) done();
+                }
+                else {
+                    exchanged.push(hash)
+                    self._addSeen(otherId, meta.seq, function (err) {
+                        if (err) cb(err)
+                        else if (-- pending === 0) done()
+                        ex.since({ seen: meta.seq });
+                    });
+                }
             }));
         });
         stream.pipe(df)
