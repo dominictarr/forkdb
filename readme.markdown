@@ -348,6 +348,9 @@ Specify the replication strategy with `opts.mode`:
 Note that if both endpoints try to push or both endpoints try to pull from each
 other, nothing will happen.
 
+forkdb saves the last sequence successfully replicated for each remote host to
+avoid sending hashes for sequences that remote hosts already know about.
+
 # usage
 
 ```
