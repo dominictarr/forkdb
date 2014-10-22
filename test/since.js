@@ -141,14 +141,14 @@ test('since replicate sequence', function (t) {
         t.ifError(err);
     });
     ra.on('available', function (hs) {
-        t.deepEqual(hs, []);
+        t.deepEqual(hs, [], 'available A');
     });
     ra.on('response', t.fail.bind(t));
     var rb = fdb.b.replicate({ mode: 'sync' }, function (err, hs) {
         t.ifError(err);
     });
     rb.on('available', function (hs) {
-        t.deepEqual(hs, [ hashes[4] ]);
+        t.deepEqual(hs, [ hashes[4] ], 'available B');
     });
     rb.on('response', function (hash) {
         t.deepEqual(hash, hashes[4]);
