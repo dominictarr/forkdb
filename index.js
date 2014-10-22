@@ -12,6 +12,7 @@ var through = require('through2');
 var Readable = require('readable-stream').Readable;
 var readonly = require('read-only-stream');
 var writeonly = require('write-only-stream');
+var duplexer = require('duplexer2');
 
 var inherits = require('inherits');
 var EventEmitter = require('events').EventEmitter;
@@ -115,65 +116,70 @@ ForkDB.prototype._getSeen = function (id, cb) {
     });
 };
 
-ForkDB.prototype.replicate = function (opts, cb) {
+ForkDB.prototype.replicate = function (meta, opts, cb) {
+    var self = this;
+    var input = through(), output = through();
+    self._queue.push(function (fn) {
+        var r = self._replicate(meta, opts, cb);
+        input.pipe(r).pipe(output);
+        fn();
+    });
+    self._runQueue();
+    return duplexer(input, output);
+};
+
+ForkDB.prototype._replicate = function (opts, cb) {
     var self = this;
     if (typeof opts === 'function') {
         cb = opts;
         opts = {};
     }
     if (!opts) opts = {};
+    
     var mode = defined(opts.mode, 'sync');
-    
-    var otherId = null;
     var errors = [], exchanged = [];
-    var pending = 1, fpending = 2;
+    var otherId = null;
+    var pending = 1;
     
-    var ex = exchange(function (shash) {
-        if (/^meta=/.test(shash)) return;
+    var eopts = { id: self._id, meta: { seq: self._seq } };
+    var ex = exchange(eopts, function (hash) {
         if (mode === 'pull') {
             if (pending === 0) done();
             return;
         }
-        
-        var hash = shash.replace(/^[^:]+:/, '');
         pending ++;
         var r = self.store.createReadStream({ key: hash });
         r.on('end', function () {
-            self._getSeen(otherId, function (err, seq) {
-                if (err) return cb && cb(err)
-                seq = Math.max(seq, Number(shash.split(':')[0]));
-                self.db.put([ '_seen', otherId ], seq, function (err) {
-                    if (err) return cb && cb(err)
-                    self._seen[otherId] = seq;
-                    if (-- pending === 0) done()
-                });
-            });
+            if (-- pending === 0) done()
         });
         return r;
     });
     
-    ex.on('available', function (hashes) {
-        var h = hashes[0];
-        if (/^meta=/.test(h)) {
-            try { var meta = JSON.parse(h.replace(/^meta=/, '')) }
-            catch (err) { return ex.end() }
-            if (meta && meta.id !== undefined) {
-                pending --;
-                otherId = meta.id;
-                provideFor(meta.id);
-            }
-            else if (meta && meta.seq) {
-                self.db.put([ '_seen', otherId ], meta.seq, function (err) {
-                    if (err) cb && cb(err)
-                    else if (--fpending === 0) finish()
-                });
-            }
-            else request(meta, hashes.slice(1))
-        }
-        else request({}, hashes)
+    ex.on('handshake', function (id, meta) {
+        pending --;
+        
+        self._getSeen(id, function (err, seq) {
+            if (err) return cb(err)
+            provideSince(0); // TODO: use the REQUESTED seq
+        });
     });
-    ex.on('response', function (shash, stream) {
-        var hash = shash.replace(/^[^:]+:/, '');
+    
+    ex.on('available', function (hashes) {
+        if (mode === 'push') return;
+        var p = hashes.length;
+        var needed = [];
+        hashes.forEach(function (h) {
+            self.get(h, function (err) {
+                if (err) needed.push(h);
+                if (-- p === 0) {
+                    pending += needed.length;
+                    ex.request(needed);
+                }
+            });
+        });
+    });
+    
+    ex.on('response', function (hash, stream) {
         var opts = { expected: hash }; // TODO: verify hash
         var df = dropFirst(function (err, meta) {
             df.pipe(self.createWriteStream(meta, opts, function (err) {
@@ -184,55 +190,10 @@ ForkDB.prototype.replicate = function (opts, cb) {
         });
         stream.pipe(df)
     });
-    
-    if (self._seq === undefined) {
-        self._queue.push(function (fn) {
-            ex.provide('meta=' + JSON.stringify({
-                id: self._id,
-                _r: Math.random()
-            }));
-            fn();
-        });
-    }
-    else ex.provide('meta=' + JSON.stringify({
-        id: self._id,
-        _r: Math.random()
-    }));
     return ex;
     
     function done () {
-        ex.provide('meta=' + JSON.stringify({
-            seq: self._seq,
-            _r: Math.random()
-        }));
-        if (-- fpending === 0) finish();
-    }
-    function finish () {
         if (cb) cb(errors.length ? errors : null, exchanged);
-    }
-    
-    function request (meta, hashes) {
-        if (mode === 'push') return;
-        
-        if (!meta) meta = {};
-        var p = hashes.length;
-        var needed = [];
-        hashes.forEach(function (h) {
-            self.get(h.replace(/^[^:]+:/,''), function (err) {
-                if (err) needed.push(h);
-                if (-- p === 0) {
-                    pending += needed.length;
-                    ex.request(needed);
-                }
-            });
-        });
-    }
-    
-    function provideFor (id) {
-        self._getSeen(id, function (err, seq) {
-            if (err) cb && cb(err)
-            else provideSince(seq);
-        });
     }
     
     function provideSince (seq) {
@@ -243,7 +204,7 @@ ForkDB.prototype.replicate = function (opts, cb) {
         });
         r.pipe(through.obj(write, flush));
         function write (row, enc, next) {
-            hashes.push(row.key[1] + ':' + row.value);
+            hashes.push(row.value);
             if (hashes.length >= 25) flush();
             next();
         }

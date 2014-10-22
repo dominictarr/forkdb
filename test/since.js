@@ -141,7 +141,6 @@ test('since replicate sequence', function (t) {
         t.ifError(err);
     });
     ra.on('available', function (hs) {
-        if (/^meta=/.test(hs[0])) return;
         t.deepEqual(hs, []);
     });
     ra.on('response', t.fail.bind(t));
@@ -149,8 +148,7 @@ test('since replicate sequence', function (t) {
         t.ifError(err);
     });
     rb.on('available', function (hs) {
-        if (/^meta=/.test(hs[0])) return;
-        t.deepEqual(hs, [ '5:' + hashes[4] ]);
+        t.deepEqual(hs, [ hashes[4] ]);
     });
     rb.on('response', function (hash) {
         t.deepEqual(hash, hashes[4]);

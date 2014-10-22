@@ -22,7 +22,8 @@
     "readable-stream": "^1.1.13",
     "subarg": "^1.0.0",
     "through2": "^1.1.1",
-    "write-only-stream": "^1.1.0"
+    "write-only-stream": "^1.1.0",
+    "duplexer2": "~0.0.2"
   },
   "devDependencies": {
     "tape": "^3.0.0",
