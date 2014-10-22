@@ -161,11 +161,28 @@ ForkDB.prototype._replicate = function (opts, cb) {
     
     ex.on('handshake', function (id, meta) {
         pending --;
-        
         self._getSeen(id, function (err, seq) {
             if (err) return cb(err)
-            provideSince(0); // TODO: use the REQUESTED seq
+            else ex.since(seq)
         });
+    });
+    
+    ex.on('since', function (seq) {
+        var hashes = [];
+        var r = self.db.createReadStream({
+            gte: [ 'seq', defined(seq, null) ],
+            lt: [ 'seq', undefined ]
+        });
+        r.pipe(through.obj(write, flush));
+        function write (row, enc, next) {
+            hashes.push(row.value);
+            if (hashes.length >= 25) flush();
+            next();
+        }
+        function flush () {
+            if (hashes.length) ex.provide(hashes);
+            hashes = [];
+        }
     });
     
     ex.on('available', function (hashes) {
@@ -198,24 +215,6 @@ ForkDB.prototype._replicate = function (opts, cb) {
     
     function done () {
         if (cb) cb(errors.length ? errors : null, exchanged);
-    }
-    
-    function provideSince (seq) {
-        var hashes = [];
-        var r = self.db.createReadStream({
-            gte: [ 'seq', defined(seq, null) ],
-            lt: [ 'seq', undefined ]
-        });
-        r.pipe(through.obj(write, flush));
-        function write (row, enc, next) {
-            hashes.push(row.value);
-            if (hashes.length >= 25) flush();
-            next();
-        }
-        function flush () {
-            if (hashes.length) ex.provide(hashes);
-            hashes = [];
-        }
     }
 };
 
