@@ -119,13 +119,17 @@ ForkDB.prototype._getSeen = function (id, cb) {
 ForkDB.prototype.replicate = function (meta, opts, cb) {
     var self = this;
     var input = through(), output = through();
+    var dup = duplexer(input, output);
     self._queue.push(function (fn) {
         var r = self._replicate(meta, opts, cb);
+        r.on('available', dup.emit.bind(dup, 'available'));
+        r.on('response', dup.emit.bind(dup, 'response'));
+        
         input.pipe(r).pipe(output);
         fn();
     });
     self._runQueue();
-    return duplexer(input, output);
+    return dup;
 };
 
 ForkDB.prototype._replicate = function (opts, cb) {
