@@ -139,28 +139,33 @@ ForkDB.prototype._replicate = function (opts, cb) {
         opts = {};
     }
     if (!opts) opts = {};
+    if (!cb) cb = function () {};
     
     var mode = defined(opts.mode, 'sync');
     var errors = [], exchanged = [];
-    var otherId = null;
     var pending = 1;
     
     var eopts = { id: self._id, meta: { seq: self._seq } };
-    var ex = exchange(eopts, function (hash) {
+    var ex = exchange(eopts, function (hash, fn) {
         if (mode === 'pull') {
             if (pending === 0) done();
             return;
         }
         pending ++;
-        var r = self.store.createReadStream({ key: hash });
-        r.on('end', function () {
-            if (-- pending === 0) done()
+        
+        self.db.get([ 'seq-hash', hash ], function (err, seq) {
+            if (err) return cb(err);
+            var r = self.store.createReadStream({ key: hash });
+            r.on('error', cb);
+            r.on('end', function () { if (-- pending === 0) done() });
+            fn(null, r, { seq: seq });
         });
-        return r;
     });
     
+    var otherId;
     ex.on('handshake', function (id, meta) {
         pending --;
+        otherId = id;
         self._getSeen(id, function (err, seq) {
             if (err) return cb(err)
             else ex.since(seq)
@@ -200,8 +205,23 @@ ForkDB.prototype._replicate = function (opts, cb) {
         });
     });
     
-    ex.on('response', function (hash, stream) {
-        var opts = { expected: hash }; // TODO: verify hash
+    ex.on('response', function (hash, stream, meta) {
+        var opts = {
+            expected: hash, // TODO: verify hash
+            prebatch: function (rows, key, fn) {
+                self._getSeen(otherId, function (err, seq) {
+                    if (err) return fn(rows);
+                    var mseq = Math.max(seq, meta.seq) || 0;
+                    rows.push({
+                        type: 'put',
+                        key: [ '_seen', otherId ],
+                        value: mseq
+                    });
+                    self._seen[otherId] = mseq;
+                    fn(null, rows);
+                });
+            }
+        };
         var df = dropFirst(function (err, meta) {
             df.pipe(self.createWriteStream(meta, opts, function (err) {
                 if (err) errors.push(err);
@@ -267,7 +287,9 @@ ForkDB.prototype._createWriteStream = function (meta, opts, cb) {
                 });
             }
             var skey = [ 'seq', ++ self._seq ];
+            var shkey = [ 'seq-hash', w.key ];
             rows.push({ type: 'put', key: [ 'meta', w.key ], value: meta });
+            rows.push({ type: 'put', key: shkey, value: self._seq });
             rows.push({ type: 'put', key: skey, value: w.key });
             prebatch(rows, w.key, commit);
         });
