@@ -20,11 +20,11 @@ forkdb list {--lt=LT, --gt=GT, --limit=LIMIT}
   List all the document metadata in the database.
   Optionally set LT, GT, and LIMIT constraints on the output.
 
-forkdb get HASH
+forkdb read HASH
 
   Print the contents for HASH to stdout.
 
-forkdb meta HASH
+forkdb get HASH
 
   Print the metadata for HASH to stdout as json.
 
