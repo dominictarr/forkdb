@@ -62,15 +62,15 @@ else if (cmd === 'create') {
     });
     process.stdin.pipe(w);
 }
-else if (cmd === 'get') {
+else if (cmd === 'read') {
     if (argv._.length < 2) return showHelp(1);
-    var s = fdb.get(argv._[1]);
+    var s = fdb.createReadStream(argv._[1]);
     s.pipe(process.stdout);
     s.on('end', function () { db.close() });
 }
-else if (cmd === 'meta') {
+else if (cmd === 'get') {
     if (argv._.length < 2) return showHelp(1);
-    fdb.getMeta(argv._[1], function (err, row) {
+    fdb.get(argv._[1], function (err, row) {
         if (err) return error(err)
         console.log(stringify({ space: 2 }));
         db.close();
