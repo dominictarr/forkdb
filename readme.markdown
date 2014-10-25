@@ -256,8 +256,8 @@ Save the data written to the writable stream `w` into blob storage at
 ``` js
 meta.key = 'blorp';
 meta.prev = [
-  { key: 'blorp', hash: 'fcbcbe4389433dd9652d279bb9044b8e570d7f033fab18189991354228a43e99' },
-  { key: 'blorp', hash: 'c3122c908bf03bb8b36eaf3b46e27437e23827e6a341439974d5d38fb22fbdfc' }
+  'fcbcbe4389433dd9652d279bb9044b8e570d7f033fab18189991354228a43e99',
+  'c3122c908bf03bb8b36eaf3b46e27437e23827e6a341439974d5d38fb22fbdfc'
 ];
 ```
 
