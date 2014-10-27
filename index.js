@@ -158,7 +158,7 @@ ForkDB.prototype._replicate = function (opts, cb) {
     
     var mode = defined(opts.mode, 'sync');
     var errors = [], exchanged = [];
-    var pending = 1;
+    var pending = 2;
     
     var eopts = { id: self._id };
     var ex = exchange(eopts, function (hash, fn) {
@@ -187,10 +187,14 @@ ForkDB.prototype._replicate = function (opts, cb) {
         });
     });
     
+    var firstSeen = true;
     ex.on('since', function (meta) {
         if (meta.seq) provideSeq(meta.seq);
         else if (meta.seen) {
-            self._addSeen(otherId, meta.seen, function () {});
+            self._addSeen(otherId, meta.seen, function () {
+                if (firstSeen && --pending === 0) done();
+                firstSeen = false;
+            });
         }
     });
     
@@ -207,7 +211,7 @@ ForkDB.prototype._replicate = function (opts, cb) {
             next();
         }
         function flush () {
-            if (hashes.length) ex.provide(hashes);
+            ex.provide(hashes);
             hashes = [];
         }
     }
@@ -246,20 +250,23 @@ ForkDB.prototype._replicate = function (opts, cb) {
                 else {
                     exchanged.push(hash)
                     self._addSeen(otherId, meta.seq, function (err) {
-                        if (err) cb(err)
-                        else if (-- pending === 0) done()
+                        if (err) return cb(err)
                         ex.since({ seen: meta.seq });
+                        if (-- pending === 0) done()
                     });
                 }
             }));
         });
         stream.pipe(df)
     });
+    
+    ex.on('close', function () {
+        if (cb) cb(errors.length ? errors : null, exchanged);
+    });
+    
     return ex;
     
-    function done () {
-        if (cb) cb(errors.length ? errors : null, exchanged);
-    }
+    function done () { ex.close() }
 };
 
 ForkDB.prototype.createWriteStream = function (meta, opts, cb) {
