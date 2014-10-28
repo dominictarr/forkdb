@@ -231,9 +231,7 @@ ForkDB.prototype._replicate = function (opts, cb) {
                 }
             });
         });
-        if (hashes.length === 0) {
-            ex.close();
-        }
+        if (hashes.length + pending === 0) done();
     });
     
     ex.on('response', function (hash, stream, meta) {
