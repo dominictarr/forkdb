@@ -100,10 +100,10 @@ test('populate pull sync', function (t) {
 test('pull sync', function (t) {
     t.plan(2);
     var ra = fdb.a.replicate({ mode: 'pull' }, function (err, hs) {
-        t.ifError(err);
+        t.ifError(err, 'replicate cb A');
     });
     var rb = fdb.b.replicate({ mode: 'sync' }, function (err, hs) {
-        t.ifError(err);
+        t.ifError(err, 'replicate cb B');
     });
     ra.pipe(rb).pipe(ra);
 });

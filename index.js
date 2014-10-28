@@ -160,7 +160,7 @@ ForkDB.prototype._replicate = function (opts, cb) {
     var errors = [], exchanged = [];
     var pending = 1;
     
-    var eopts = { id: self._id };
+    var eopts = { id: self._id, meta: { mode: mode } };
     var ex = exchange(eopts, function (hash, fn) {
         if (mode === 'pull') {
             if (pending === 0) done();
@@ -177,10 +177,11 @@ ForkDB.prototype._replicate = function (opts, cb) {
         });
     });
     
-    var otherId;
+    var other = {};
     ex.on('handshake', function (id, meta) {
         pending --;
-        otherId = id;
+        other.id = id;
+        other.mode = meta && meta.mode;
         self._getSeen(id, function (err, seq) {
             if (err) return cb(err)
             else ex.since({ seq: seq })
@@ -191,7 +192,7 @@ ForkDB.prototype._replicate = function (opts, cb) {
         if (meta.seq) provideSeq(meta.seq);
         else if (meta.seen) {
             pending ++;
-            self._addSeen(otherId, meta.seen, function () {
+            self._addSeen(other.id, meta.seen, function () {
                 if (--pending === 0) done();
             });
         }
@@ -217,6 +218,7 @@ ForkDB.prototype._replicate = function (opts, cb) {
     
     ex.on('available', function (hashes) {
         if (mode === 'push') return;
+        if (other.mode === 'pull') return;
         var p = hashes.length;
         var needed = [];
         hashes.forEach(function (h) {
@@ -224,9 +226,6 @@ ForkDB.prototype._replicate = function (opts, cb) {
                 if (err) needed.push(h);
                 if (-- p === 0) {
                     pending += needed.length;
-                    if (needed.length === 0) {
-                        console.error('NEED 0!', pending);
-                    }
                     ex.request(needed);
                 }
             });
@@ -238,7 +237,7 @@ ForkDB.prototype._replicate = function (opts, cb) {
         var opts = {
             expected: hash, // TODO: verify hash
             prebatch: function (rows, key, fn) {
-                self._addSeen(otherId, meta.seq || 0, function (err, rows_) {
+                self._addSeen(other.id, meta.seq || 0, function (err, rows_) {
                     if (err) fn(null, rows)
                     else fn(null, rows.concat(rows_))
                 });
@@ -252,7 +251,7 @@ ForkDB.prototype._replicate = function (opts, cb) {
                 }
                 else {
                     exchanged.push(hash)
-                    self._addSeen(otherId, meta.seq, function (err) {
+                    self._addSeen(other.id, meta.seq, function (err) {
                         if (err) return cb(err)
                         ex.since({ seen: meta.seq });
                         if (-- pending === 0) done()
